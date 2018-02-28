@@ -1,7 +1,7 @@
 {
   "author": "Sergey Pimenov",
-  "name": "metro-dist",
-  "version": "3.0.18",
+  "name": "metro4-dist",
+  "version": "4.0.0",
   "description": "The front-end framework for developing responsive, mobile projects on the web in Windows Metro Style.",
   "keywords": [
     "css",
