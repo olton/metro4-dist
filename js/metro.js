@@ -1,5 +1,5 @@
 /*!
- * Metro 4 Components Library v4.0.4 build 614-beta (https://metroui.org.ua)
+ * Metro 4 Components Library v4.0.5 build 616-beta (https://metroui.org.ua)
  * Copyright 2018 Sergey Pimenov
  * Licensed under MIT
  */
@@ -71,7 +71,7 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.0.4-614-beta",
+    version: "4.0.5-616-beta",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -319,10 +319,11 @@ var Metro = {
                         var mc = $this.data('metroComponent');
 
                         if (mc === undefined) {
-                            $this.data('metroComponent', [func]);
+                            mc = [func];
                         } else {
                             mc.push(func);
                         }
+                        $this.data('metroComponent', mc);
                     }
                 } catch (e) {
                     console.log(e.message, e.stack);
@@ -370,14 +371,28 @@ var Metro = {
                 var mc = element.data('metroComponent');
 
                 if (mc === undefined) {
-                    element.data('metroComponent', [name]);
+                    mc = [name];
                 } else {
                     mc.push(name);
                 }
+                element.data('metroComponent', mc);
             }
         } catch (e) {
             console.log(e.message, e.stack);
         }
+    },
+
+    reinitPligin: function(element, name){
+        this.destroyPlugin(element, name);
+        this.initPlugin(element, name);
+    },
+
+    reinitPliginAll: function(element){
+        var mc = $(element).data("metroComponent");
+
+        if (mc !== undefined && mc.length > 0) $.each(mc, function(){
+            Metro.reinitPligin(element, this);
+        });
     },
 
     noop: function(){},
@@ -13494,6 +13509,7 @@ var Tile = {
         cover: "",
         effect: "",
         effectInterval: 3000,
+        effectDuration: 500,
         target: null,
         canTransform: true,
         onClick: Metro.noop,
@@ -13621,11 +13637,11 @@ var Tile = {
 
             next = that.slides[that.currentSlide];
 
-            if (o.effect === "animate-slide-up") Animation.slideUp($(current), $(next));
-            if (o.effect === "animate-slide-down") Animation.slideDown($(current), $(next));
-            if (o.effect === "animate-slide-left") Animation.slideLeft($(current), $(next));
-            if (o.effect === "animate-slide-right") Animation.slideRight($(current), $(next));
-            if (o.effect === "animate-fade") Animation.fade($(current), $(next));
+            if (o.effect === "animate-slide-up") Animation.slideUp($(current), $(next), o.effectDuration);
+            if (o.effect === "animate-slide-down") Animation.slideDown($(current), $(next), o.effectDuration);
+            if (o.effect === "animate-slide-left") Animation.slideLeft($(current), $(next), o.effectDuration);
+            if (o.effect === "animate-slide-right") Animation.slideRight($(current), $(next), o.effectDuration);
+            if (o.effect === "animate-fade") Animation.fade($(current), $(next), o.effectDuration);
 
         }, o.effectInterval);
     },
