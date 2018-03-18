@@ -1,5 +1,5 @@
 /*!
- * Metro 4 Components Library v4.0.10 build 622-beta (https://metroui.org.ua)
+ * Metro 4 Components Library v4.1.0 build 625 (https://metroui.org.ua)
  * Copyright 2018 Sergey Pimenov
  * Licensed under MIT
  */
@@ -79,7 +79,7 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.0.10-622-beta",
+    version: "4.1.0-625",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -4338,6 +4338,7 @@ var ButtonGroup = {
     options: {
         targets: "button",
         clsActive: "active",
+        requiredButton: false,
         mode: Metro.groupMode.ONE,
         onButtonClick: Metro.noop,
         onButtonsGroupCreate: Metro.noop
@@ -4379,7 +4380,7 @@ var ButtonGroup = {
         buttons = element.find( o.targets );
         buttons_active = element.find( "." + o.clsActive );
 
-        if (o.mode === Metro.groupMode.ONE && buttons_active.length === 0) {
+        if (o.mode === Metro.groupMode.ONE && buttons_active.length === 0 && o.requiredButton === true) {
             $(buttons[0]).addClass(o.clsActive);
         }
 
@@ -5248,6 +5249,8 @@ var CalendarPicker = {
         return this;
     },
 
+    dependencies: ['calendar'],
+
     options: {
         locale: METRO_LOCALE,
         size: "100%",
@@ -5309,6 +5312,10 @@ var CalendarPicker = {
         var container = $("<div>").addClass("input " + element[0].className + " calendar-picker");
         var buttons = $("<div>").addClass("button-group");
         var calendarButton, clearButton, cal = $("<div>").addClass("drop-shadow");
+
+        if (element.attr("type") === undefined) {
+            element.attr("type", "text");
+        }
 
         this.value = element.val();
         if (Utils.isDate(this.value)) {
@@ -7401,6 +7408,8 @@ var DatePicker = {
         clsMonth: "",
         clsDay: "",
         clsYear: "",
+        okButtonIcon: "<span class='default-icon-check'></span>",
+        cancelButtonIcon: "<span class='default-icon-cross'></span>",
         onSet: Metro.noop,
         onOpen: Metro.noop,
         onClose: Metro.noop,
@@ -7520,8 +7529,8 @@ var DatePicker = {
         selectBlock.height((o.distance * 2 + 1) * 40);
 
         actionBlock = $("<div>").addClass("action-block").appendTo(selectWrapper);
-        $("<button>").attr("type", "button").addClass("button action-ok").html("<span class='default-icon-check'></span>").appendTo(actionBlock);
-        $("<button>").attr("type", "button").addClass("button action-cancel").html("<span class='default-icon-cross'></span>").appendTo(actionBlock);
+        $("<button>").attr("type", "button").addClass("button action-ok").html(o.okButtonIcon).appendTo(actionBlock);
+        $("<button>").attr("type", "button").addClass("button action-cancel").html(o.cancelButtonIcon).appendTo(actionBlock);
 
 
         element[0].className = '';
@@ -9170,7 +9179,7 @@ var Keypad = {
         if (parent.hasClass("input")) {
             keypad = parent;
         } else {
-            keypad = $("<div>").addClass(element[0].className);
+            keypad = $("<div>").addClass("input").addClass(element[0].className);
         }
 
         keypad.addClass("keypad");
@@ -10216,8 +10225,13 @@ var NavigationView = {
         var that = this, element = this.element, o = this.options;
         var pane = this.pane, content = this.content;
 
-        element.on(Metro.events.click, ".pull-button, .holder", function(){
+        element.on(Metro.events.click, ".pull-button, .holder", function(e){
             var pane_compact = pane.width() < 280;
+            var target = $(this);
+
+            if (target.hasClass("holder")) {
+                target.parent().find("input").focus();
+            }
 
             if (that.pane.hasClass("open")) {
                 that.close();
@@ -10234,6 +10248,7 @@ var NavigationView = {
                 return ;
             }
 
+            return true;
         });
 
         if (this.paneToggle !== null) {
@@ -10396,6 +10411,8 @@ var Panel = {
 
         return this;
     },
+
+    dependencies: ['draggable', 'collapse'],
 
     options: {
         titleCaption: "",
@@ -11358,6 +11375,8 @@ var RibbonMenu = {
         return this;
     },
 
+    dependencies: ['buttongroup'],
+
     options: {
         onStatic: Metro.noop,
         onBeforeTab: Metro.noop_true,
@@ -11772,33 +11791,37 @@ var Select = {
         this._createEvents();
     },
 
+    _addOption: function(item, parent){
+        var option = $(item);
+        var l, a;
+        var element = this.element, o = this.options;
+        var input = element.siblings("input");
+
+        l = $("<li>").addClass(o.clsOption).data("text", item.text).data('value', item.value ? item.value : item.text).appendTo(parent);
+        a = $("<a>").html(item.text).appendTo(l).addClass(item.className);
+
+        if (option.is(":selected")) {
+            element.val(item.value);
+            input.val(item.text).trigger("change");
+            element.trigger("change");
+        }
+
+        a.appendTo(l);
+        l.appendTo(parent);
+    },
+
+    _addOptionGroup: function(item, parent){
+        var that = this;
+        var group = $(item);
+
+        $("<li>").html(item.label).addClass("group-title").appendTo(parent);
+
+        $.each(group.children(), function(){
+            that._addOption(this, parent);
+        })
+    },
+
     _createSelect: function(){
-
-        function addOption(item, parent){
-            var option = $(item);
-            var l, a;
-
-            l = $("<li>").addClass(o.clsOption).data("text", item.text).data('value', item.value).appendTo(list);
-            a = $("<a>").html(item.text).appendTo(l).addClass(item.className);
-
-            if (option.is(":selected")) {
-                element.val(item.value);
-                input.val(item.text).trigger("change");
-                element.trigger("change");
-            }
-
-            a.appendTo(l);
-            l.appendTo(parent);
-        }
-
-        function addOptionGroup(item, parent){
-            var group = $(item);
-            var optgroup = $("<li>").html(item.label).addClass("group-title").appendTo(parent);
-            $.each(group.children(), function(){
-                addOption(this, parent);
-            })
-        }
-
         var that = this, element = this.element, o = this.options;
 
         var prev = element.prev();
@@ -11824,18 +11847,17 @@ var Select = {
                 "max-height": o.dropHeight
             });
 
+            container.append(input);
+            container.append(list);
+
             $.each(element.children(), function(){
                 if (this.tagName === "OPTION") {
-                    addOption(this, list);
+                    that._addOption(this, list);
                 } else if (this.tagName === "OPTGROUP") {
-                    addOptionGroup(this, list);
-                } else {
-
+                    that._addOptionGroup(this, list);
                 }
             });
 
-            container.append(input);
-            container.append(list);
             list.dropdown({
                 duration: o.duration,
                 toggleElement: "#"+select_id,
@@ -11854,6 +11876,7 @@ var Select = {
                     Utils.exec(o.onUp, [list, element], list[0]);
                 }
             });
+
         }
 
         if (o.prepend !== "") {
@@ -11876,6 +11899,7 @@ var Select = {
         } else {
             this.enable();
         }
+
     },
 
     _createEvents: function(){
@@ -11919,8 +11943,51 @@ var Select = {
         this.element.parent().removeClass("disabled");
     },
 
+    data: function(op){
+        var that = this, element = this.element;
+        var list = element.siblings("ul");
+        var option, option_group;
+
+        element.html("");
+        list.html("");
+
+        if (typeof op === 'string') {
+            element.html(op);
+        } else if (Utils.isObject(op)) {
+            $.each(op, function(key, val){
+                if (Utils.isObject(val)) {
+                    option_group = $("<optgroup>").attr("label", key).appendTo(element);
+                    $.each(val, function(key2, val2){
+                        $("<option>").attr("value", key2).text(val2).appendTo(option_group);
+                    });
+                } else {
+                    $("<option>").attr("value", key).text(val).appendTo(element);
+                }
+            });
+        }
+
+        $.each(element.children(), function(){
+            if (this.tagName === "OPTION") {
+                that._addOption(this, list);
+            } else if (this.tagName === "OPTGROUP") {
+                that._addOptionGroup(this, list);
+            }
+        });
+    },
+
     changeAttribute: function(attributeName){
 
+    },
+
+    destroy: function(){
+        var element = this.element;
+        var container = element.parent();
+        var list = element.siblings("ul");
+        container.off(Metro.events.click);
+        list.off(Metro.events.click, "li");
+        Metro.destroyPlugin(list, "dropdown");
+        element.insertBefore(container);
+        container.remove();
     }
 };
 
@@ -12591,7 +12658,7 @@ var Streamer = {
         element.addClass("streamer");
 
         if (element.attr("id") === undefined) {
-            element.attr("id", Utils.uniqueId());
+            element.attr("id", Utils.elementId("streamer"));
         }
 
         if (o.source === null && o.data === null) {
@@ -13193,11 +13260,10 @@ var Switch = {
 
         element.appendTo(container);
         check.appendTo(container);
+        caption.appendTo(container);
 
         if (o.captionPosition === 'left') {
-            caption.insertBefore(check);
-        } else {
-            caption.insertAfter(check);
+            container.addClass("caption-left");
         }
 
         element[0].className = '';
@@ -13250,7 +13316,7 @@ var Tabs = {
         this._setOptionsFromDOM();
         this._create();
 
-        Utils.exec(this.options.onTabsCreate, [this.element]);
+        Utils.exec(this.options.onTabsCreate, [this.element], this.elem);
 
         return this;
     },
@@ -13277,10 +13343,19 @@ var Tabs = {
 
     _create: function(){
         var that = this, element = this.element, o = this.options;
+        var tab = element.find(".active").length > 0 ? $(element.find(".active")[0]) : undefined;
+
+        this._createStructure();
+        this._createEvents();
+        this._open(tab);
+    },
+
+    _createStructure: function(){
+        var that = this, element = this.element, o = this.options;
         var prev = element.prev();
         var parent = element.parent();
         var container = $("<div>").addClass("tabs tabs-wrapper " + element[0].className);
-        var expandButton, expandTitle;
+        var expandTitle, hamburger;
 
         element[0].className = "";
 
@@ -13295,15 +13370,33 @@ var Tabs = {
         element.data('expanded', false);
 
         expandTitle = $("<div>").addClass("expand-title"); container.prepend(expandTitle);
-        expandButton = $("<span>").addClass("expand-button").html("<span></span>"); container.append(expandButton);
+        hamburger = container.find(".hamburger");
+        if (hamburger.length === 0) {
+            hamburger = $("<button>").attr("type", "button").addClass("hamburger menu-down").appendTo(container);
+            for(var i = 0; i < 3; i++) {
+                $("<span>").addClass("line").appendTo(hamburger);
+            }
 
-        container.on(Metro.events.click, ".expand-button, .expand-title", function(){
+            if (Colors.isLight(Utils.computedRgbToHex(Utils.getStyleOne(container, "background-color"))) === true) {
+                hamburger.addClass("dark");
+            }
+        }
+
+    },
+
+    _createEvents: function(){
+        var that = this, element = this.element, o = this.options;
+        var container = element.parent();
+
+        container.on(Metro.events.click, ".hamburger, .expand-title", function(){
             if (element.data('expanded') === false) {
                 element.addClass("expand");
                 element.data('expanded', true);
+                container.find(".hamburger").addClass("active");
             } else {
                 element.removeClass("expand");
                 element.data('expanded', false);
+                container.find(".hamburger").removeClass("active");
             }
         });
 
@@ -13314,12 +13407,11 @@ var Tabs = {
             if (element.data('expanded') === true) {
                 element.removeClass("expand");
                 element.data('expanded', false);
+                container.find(".hamburger").removeClass("active");
             }
-            if (Utils.exec(o.onBeforeTab, [tab, element]) === true) that._open(tab);
+            if (Utils.exec(o.onBeforeTab, [tab, element], tab[0]) === true) that._open(tab);
             e.preventDefault();
         });
-
-        this._open();
     },
 
     _collectTargets: function(){
@@ -13781,6 +13873,8 @@ var TimePicker = {
         clsHours: "",
         clsMinutes: "",
         clsSeconds: "",
+        okButtonIcon: "<span class='default-icon-check'></span>",
+        cancelButtonIcon: "<span class='default-icon-cross'></span>",
         onSet: Metro.noop,
         onOpen: Metro.noop,
         onClose: Metro.noop,
@@ -13901,8 +13995,8 @@ var TimePicker = {
         selectBlock.height((o.distance * 2 + 1) * 40);
 
         actionBlock = $("<div>").addClass("action-block").appendTo(selectWrapper);
-        $("<button>").attr("type", "button").addClass("button action-ok").html("<span class='default-icon-check'></span>").appendTo(actionBlock);
-        $("<button>").attr("type", "button").addClass("button action-cancel").html("<span class='default-icon-cross'></span>").appendTo(actionBlock);
+        $("<button>").attr("type", "button").addClass("button action-ok").html(o.okButtonIcon).appendTo(actionBlock);
+        $("<button>").attr("type", "button").addClass("button action-cancel").html(o.cancelButtonIcon).appendTo(actionBlock);
 
 
         element[0].className = '';
@@ -14713,6 +14807,8 @@ var Validator = {
         return this;
     },
 
+    dependencies: ['utils', 'colors'],
+
     options: {
         submitTimeout: 200,
         interactiveCheck: false,
@@ -15386,6 +15482,8 @@ var Window = {
         return this;
     },
 
+    dependencies: ['draggable', 'resizeable'],
+
     options: {
         width: "auto",
         height: "auto",
@@ -15927,13 +16025,18 @@ var Wizard = {
     _setHeight: function(){
         var that = this, element = this.element, o = this.options;
         var pages = element.children("section");
+        var max_height = 0;
 
         pages.children(".page-content").css("max-height", "none");
 
         $.each(pages, function(){
-            var c = $(this).children(".page-content");
-            c.css("max-height", c.outerHeight(true));
+            var h = $(this).height();
+            if (max_height < parseInt(h)) {
+                max_height = h;
+            }
         });
+
+        element.height(max_height);
     },
 
     _createEvents: function(){
@@ -15957,6 +16060,11 @@ var Wizard = {
 
         element.on(Metro.events.click, ".wizard-btn-finish", function(){
             Utils.exec(o.onFinishClick, [that.current, element])
+        });
+
+        element.on(Metro.events.click, ".complete", function(){
+            var index = $(this).index() + 1;
+            that.toPage(index);
         });
 
         $(window).on(Metro.events.resize, function(){
