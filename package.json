@@ -1,7 +1,7 @@
 {
   "author": "Sergey Pimenov",
   "name": "metro4-dist",
-  "version": "4.2.6",
+  "version": "4.2.7",
   "description": "The front-end framework for developing responsive, mobile projects on the web in Windows Metro Style.",
   "keywords": [
     "css",
@@ -21,5 +21,6 @@
   "bugs": {
     "url": "https://github.com/olton/Metro-UI-CSS.git"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "main": "js/metro.js"
 }
