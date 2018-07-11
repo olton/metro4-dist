@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.11 build 687 (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.12 build 688 (https://metroui.org.ua)
  * Copyright 2018 Sergey Pimenov
  * Licensed under MIT
  */
@@ -80,8 +80,8 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.11",
-    versionFull: "4.2.11.687 ",
+    version: "4.2.12",
+    versionFull: "4.2.12.688 ",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -15834,6 +15834,7 @@ var Table = {
         tableInfoTitle: "Showing $1 to $2 of $3 entries",
         paginationPrevTitle: "Prev",
         paginationNextTitle: "Next",
+        allRecordsTitle: "All",
 
         activityType: "cycle",
         activityStyle: "color",
@@ -16131,8 +16132,9 @@ var Table = {
 
         rows_select = $("<select>").appendTo(rows_block);
         $.each(Utils.strToArray(o.rowsSteps), function () {
-            var option = $("<option>").attr("value", this).text(this).appendTo(rows_select);
-            if (parseInt(this) === parseInt(o.rows)) {
+            var val = parseInt(this);
+            var option = $("<option>").attr("value", val).text(val === -1 ? o.allRecordsTitle : val).appendTo(rows_select);
+            if (val === parseInt(o.rows)) {
                 option.attr("selected", "selected");
             }
         });
@@ -16177,7 +16179,7 @@ var Table = {
 
     _createStructure: function(){
         var that = this, element = this.element, o = this.options;
-        var table_component, sortable_columns;
+        var table_component, columns;
         var w_search = $(o.searchWrapper), w_info = $(o.infoWrapper), w_rows = $(o.rowsWrapper), w_paging = $(o.paginationWrapper);
 
         if (w_search.length > 0) {this.wrapperSearch = w_search;}
@@ -16226,9 +16228,9 @@ var Table = {
         });
 
         if (need_sort) {
-            sortable_columns = element.find(".sortable-column");
-            this._resetSortClass(sortable_columns);
-            $(sortable_columns.get(this.sort.colIndex)).addClass("sort-"+this.sort.dir);
+            columns = element.find("thead th");
+            this._resetSortClass(columns);
+            $(columns.get(this.sort.colIndex)).addClass("sort-"+this.sort.dir);
             this.sorting();
         }
 
@@ -16469,8 +16471,8 @@ var Table = {
         var that = this, element = this.element, o = this.options;
         var body = element.find("tbody");
         var i;
-        var start = o.rows === -1 ? 0 : o.rows * (this.currentPage - 1),
-            stop = o.rows === -1 ? this.items.length - 1 : start + o.rows - 1;
+        var start = parseInt(o.rows) === -1 ? 0 : o.rows * (this.currentPage - 1),
+            stop = parseInt(o.rows) === -1 ? this.items.length - 1 : start + o.rows - 1;
         var items;
         var flt, idx = -1;
 
@@ -16514,17 +16516,20 @@ var Table = {
         }
 
         for (i = start; i <= stop; i++) {
-            var tr = $("<tr>").addClass(o.clsBodyRow);
-            if (items[i] !== undefined) $.each(items[i], function(cell_i){
-                var td = $("<td>").html(this);
-                td.addClass(o.clsBodyCell);
-                if (that.heads[cell_i].clsColumn !== undefined) {
-                    td.addClass(that.heads[cell_i].clsColumn);
-                }
-                td.appendTo(tr);
-            });
-            tr.appendTo(body);
-            Utils.exec(o.onDrawRow, [tr], element[0]);
+            var tr;
+            if (Utils.isValue(items[i])) {
+                tr = $("<tr>").addClass(o.clsBodyRow);
+                $.each(items[i], function(cell_i){
+                    var td = $("<td>").html(this);
+                    td.addClass(o.clsBodyCell);
+                    if (that.heads[cell_i].clsColumn !== undefined) {
+                        td.addClass(that.heads[cell_i].clsColumn);
+                    }
+                    td.appendTo(tr);
+                });
+                tr.appendTo(body);
+                Utils.exec(o.onDrawRow, [tr], element[0]);
+            }
         }
 
         this._info(start + 1, stop + 1, items.length);
