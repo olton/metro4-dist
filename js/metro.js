@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.16 build 693 (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.17 build 694 (https://metroui.org.ua)
  * Copyright 2018 Sergey Pimenov
  * Licensed under MIT
  */
@@ -80,8 +80,8 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.16",
-    versionFull: "4.2.16.693 ",
+    version: "4.2.17",
+    versionFull: "4.2.17.694 ",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -1656,7 +1656,7 @@ var Export = {
             table = table[0];
         }
 
-        if (o.includeHeader) {
+        if (Utils.bool(o.includeHeader)) {
 
             head = table.querySelectorAll("thead")[0];
 
@@ -10192,6 +10192,7 @@ var Input = {
         return this;
     },
     options: {
+        defaultValue: "",
         clsElement: "",
         clsInput: "",
         clsPrepend: "",
@@ -10246,10 +10247,14 @@ var Input = {
         element.appendTo(container);
         buttons.appendTo(container);
 
+        if (!Utils.isValue(element.val().trim())) {
+            element.val(o.defaultValue);
+        }
+
         if (o.clearButton !== false) {
             clearButton = $("<button>").addClass("button input-clear-button").addClass(o.clsClearButton).attr("tabindex", -1).attr("type", "button").html(o.clearButtonIcon);
             clearButton.on(Metro.events.click, function(){
-                element.val("").trigger('change').trigger('keyup').focus();
+                element.val(Utils.isValue(o.defaultValue) ? o.defaultValue : "").trigger('change').trigger('keyup').focus();
             });
             clearButton.appendTo(buttons);
         }
@@ -16135,6 +16140,8 @@ var Table = {
         infoWrapper: null,
         paginationWrapper: null,
 
+        cellWrapper: true,
+
         clsComponent: "",
         clsTable: "",
 
@@ -16179,6 +16186,7 @@ var Table = {
         onCheckDraw: Metro.noop,
         onViewSave: Metro.noop,
         onViewGet: Metro.noop,
+        onViewCreated: Metro.noop,
         onTableCreate: Metro.noop
     },
 
@@ -16318,7 +16326,7 @@ var Table = {
     },
 
     _createView: function(){
-        var view;
+        var view, o = this.options;
 
         view = {};
 
@@ -16330,11 +16338,12 @@ var Table = {
             view[i] = {
                 "index": i,
                 "index-view": i,
-                "show": true,
+                "show": !Utils.isValue(this.show) ? true : this.show,
                 "size": Utils.isValue(this.size) ? this.size : ""
             }
         });
 
+        Utils.exec(o.onViewCreated, [view], view);
         return view;
     },
 
@@ -16590,6 +16599,10 @@ var Table = {
             if (item.type === 'rownum') {classes.push("rownum-cell");}
 
             classes.push(o.clsHeadCell);
+
+            if (Utils.bool(view[cell_index]['show'])) {
+                Utils.arrayDelete(classes, "hidden");
+            }
 
             th.addClass(classes.join(" "));
 
@@ -17311,7 +17324,13 @@ var Table = {
                 }
 
                 $.each(cells, function(cell_index){
-                    td = $("<td>").html(this);
+                    var cell_wrapper;
+                    if (o.cellWrapper === true) {
+                        td = $("<td>");
+                        cell_wrapper = $("<div>").addClass("cell-wrapper").html(this).appendTo(td);
+                    } else {
+                        td = $("<td>").html(this);
+                    }
                     td.addClass(o.clsBodyCell);
                     if (Utils.isValue(that.heads[cell_index].clsColumn)) {
                         td.addClass(that.heads[cell_index].clsColumn);
@@ -17319,6 +17338,10 @@ var Table = {
 
                     if (Utils.bool(view[cell_index].show) === false) {
                         td.addClass("hidden");
+                    }
+
+                    if (Utils.bool(view[cell_index].show)) {
+                        td.removeClass("hidden");
                     }
 
                     tds[view[cell_index]['index-view']] = td;
@@ -17420,14 +17443,16 @@ var Table = {
         this._draw();
     },
 
-    loadData: function(source){
+    loadData: function(source, review){
         var that = this, element = this.element, o = this.options;
         var need_sort = false;
         var sortable_columns;
 
         function redraw(){
 
-            that.view = that._createView();
+            if (review === true) {
+                that.view = that._createView();
+            }
 
             that._createTableHeader();
             that._createTableBody();
@@ -17483,8 +17508,8 @@ var Table = {
         }
     },
 
-    reload: function(){
-        this.loadData(this.options.source);
+    reload: function(review){
+        this.loadData(this.options.source, review);
     },
 
     next: function(){
@@ -17602,11 +17627,11 @@ var Table = {
         return Metro.storage.getItem(o.checkStoreKey.replace("$1", element.attr("id")), []);
     },
 
-    clearSelected: function(resraw){
+    clearSelected: function(redraw){
         var element = this.element, o = this.options;
         Metro.storage.setItem(o.checkStoreKey.replace("$1", element.attr("id")), []);
         element.find("table-service-check-all input").prop("checked", false);
-        if (resraw === true) this._draw();
+        if (redraw === true) this._draw();
     },
 
     getFilters: function(){
@@ -17749,6 +17774,13 @@ var Tabs = {
     },
 
     options: {
+        expand: null,
+        tabsPosition: "top",
+
+        clsTabs: "",
+        clsTabsList: "",
+        clsTabsListItem: "",
+
         onTab: Metro.noop,
         onBeforeTab: Metro.noop_true,
         onTabsCreate: Metro.noop
@@ -17781,18 +17813,24 @@ var Tabs = {
         var that = this, element = this.element, o = this.options;
         var prev = element.prev();
         var parent = element.parent();
-        var container = $("<div>").addClass("tabs tabs-wrapper " + element[0].className);
+        var right_parent = parent.hasClass("tabs");
+        var container = right_parent ? parent : $("<div>").addClass("tabs tabs-wrapper");
         var expandTitle, hamburger;
 
-        element[0].className = "";
-
-        if (prev.length === 0) {
-            parent.prepend(container);
-        } else {
-            container.insertAfter(prev);
+        if (Utils.isValue(o.expand)) {
+            container.addClass("tabs-expand-"+o.expand);
         }
 
-        element.appendTo(container);
+        container.addClass(o.tabsPosition.replace(["-", "_", "+"], " "));
+        if (o.tabsPosition.contains("vertical")) {
+            container.addClass("tabs-expand-fs"); // TODO need redesign this behavior
+        }
+
+        element.addClass("tabs-list");
+        if (!right_parent) {
+            container.insertBefore(element);
+            element.appendTo(container);
+        }
 
         element.data('expanded', false);
 
@@ -17809,6 +17847,9 @@ var Tabs = {
             }
         }
 
+        container.addClass(o.clsTabs);
+        element.addClass(o.clsTabsList);
+        element.children("li").addClass(o.clsTabsListItem);
     },
 
     _createEvents: function(){
