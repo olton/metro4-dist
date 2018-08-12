@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.17 build 694 (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.18 build 695 (https://metroui.org.ua)
  * Copyright 2018 Sergey Pimenov
  * Licensed under MIT
  */
@@ -80,8 +80,8 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.17",
-    versionFull: "4.2.17.694 ",
+    version: "4.2.18",
+    versionFull: "4.2.18.695 ",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -156,6 +156,7 @@ var Metro = {
         resize: 'resize.metro',
         keyup: 'keyup.metro',
         keydown: 'keydown.metro',
+        keypress: 'keypredd.metro',
         dblclick: 'dblclick.metro',
         input: 'input.metro',
         change: 'change.metro',
@@ -835,6 +836,15 @@ var Colors = {
         return Object.keys(this[palette]);
     },
 
+    colors: function(palette){
+        var c = [];
+        palette = palette || this.PALETTES.ALL;
+        $.each(this[palette], function(){
+            c.push(this);
+        });
+        return c;
+    },
+
     hex2rgb: function(hex){
         var regex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
         hex = hex.replace( regex, function( m, r, g, b ) {
@@ -1143,14 +1153,34 @@ var Colors = {
     },
 
     lighten: function(color, amount){
-        var col, type, res, alpha = 1;
+        var type, res, alpha = 1, ring = amount > 0;
+
+        var calc = function(_color, _amount){
+            var col = _color.slice(1);
+
+            var num = parseInt(col, 16);
+            var r = (num >> 16) + _amount;
+
+            if (r > 255) r = 255;
+            else if  (r < 0) r = 0;
+
+            var b = ((num >> 8) & 0x00FF) + _amount;
+
+            if (b > 255) b = 255;
+            else if  (b < 0) b = 0;
+
+            var g = (num & 0x0000FF) + _amount;
+
+            if (g > 255) g = 255;
+            else if (g < 0) g = 0;
+
+            res = "#" + (g | (b << 8) | (r << 16)).toString(16);
+            return res;
+        };
 
         if (amount === undefined) {
             amount = 10;
         }
-
-        col = this.toHEX(color);
-        col = col.slice(1);
 
         type = this.is(color);
 
@@ -1158,23 +1188,10 @@ var Colors = {
             alpha = color.a;
         }
 
-        var num = parseInt(col, 16);
-        var r = (num >> 16) + amount;
-
-        if (r > 255) r = 255;
-        else if  (r < 0) r = 0;
-
-        var b = ((num >> 8) & 0x00FF) + amount;
-
-        if (b > 255) b = 255;
-        else if  (b < 0) b = 0;
-
-        var g = (num & 0x0000FF) + amount;
-
-        if (g > 255) g = 255;
-        else if (g < 0) g = 0;
-
-        res = "#" + (g | (b << 8) | (r << 16)).toString(16);
+        do {
+            res = calc(this.toHEX(color), amount);
+            ring ? amount-- : amount++;
+        } while (res.length < 7);
 
         switch (type) {
             case "rgb": return this.toRGB(res);
@@ -5235,14 +5252,15 @@ var Calendar = {
         });
 
         element.on(Metro.events.click, ".button.today", function(e){
-            that.today = new Date();
-            that.current = {
-                year: that.today.getFullYear(),
-                month: that.today.getMonth(),
-                day: that.today.getDate()
-            };
-            that._drawHeader();
-            that._drawContent();
+            // that.today = new Date();
+            // that.current = {
+            //     year: that.today.getFullYear(),
+            //     month: that.today.getMonth(),
+            //     day: that.today.getDate()
+            // };
+            // that._drawHeader();
+            // that._drawContent();
+            that.toDay();
             Utils.exec(o.onToday, [that.today, element]);
 
             e.preventDefault();
@@ -5685,6 +5703,22 @@ var Calendar = {
 
     getCurrent: function(){
         return this.current;
+    },
+
+    clearSelected: function(){
+        this.selected = [];
+        this._drawContent();
+    },
+
+    toDay: function(){
+        this.today = new Date();
+        this.current = {
+            year: this.today.getFullYear(),
+            month: this.today.getMonth(),
+            day: this.today.getDate()
+        };
+        this._drawHeader();
+        this._drawContent();
     },
 
     setExclude: function(exclude){
@@ -6920,6 +6954,7 @@ var Checkbox = {
         return this;
     },
     options: {
+        style: 1,
         caption: "",
         indeterminate: false,
         captionPosition: "right",
@@ -6948,7 +6983,7 @@ var Checkbox = {
         var that = this, element = this.element, o = this.options;
         var prev = element.prev();
         var parent = element.parent();
-        var checkbox = $("<label>").addClass("checkbox " + element[0].className);
+        var checkbox = $("<label>").addClass("checkbox " + element[0].className).addClass(o.style === 2 ? "style2" : "");
         var check = $("<span>").addClass("check");
         var caption = $("<span>").addClass("caption").html(o.caption);
 
@@ -13081,6 +13116,7 @@ var Radio = {
         return this;
     },
     options: {
+        style: 1,
         caption: "",
         captionPosition: "right",
         disabled: false,
@@ -13108,7 +13144,7 @@ var Radio = {
         var that = this, element = this.element, o = this.options;
         var prev = element.prev();
         var parent = element.parent();
-        var radio = $("<label>").addClass("radio " + element[0].className);
+        var radio = $("<label>").addClass("radio " + element[0].className).addClass(o.style === 2 ? "style2" : "");
         var check = $("<span>").addClass("check");
         var caption = $("<span>").addClass("caption").html(o.caption);
 
@@ -13918,9 +13954,12 @@ var Select = {
         clsElement: "",
         clsSelect: "",
         clsPrepend: "",
+        clsAppend: "",
         clsOption: "",
         clsOptionGroup: "",
+        clsDropList: "",
         prepend: "",
+        append: "",
         placeholder: "",
         filterPlaceholder: "",
         filter: true,
@@ -13956,16 +13995,26 @@ var Select = {
         var option = $(item);
         var l, a;
         var element = this.element, o = this.options;
-        var input = element.siblings("input");
+        var multiple = element[0].multiple;
+        var input = element.siblings(".select-input");
+        var html = Utils.isValue(option.data('template'))?option.data('template').replace("$1", item.text):item.text;
+        var selected_item;
 
-        l = $("<li>").addClass(o.clsOption).data("text", item.text).data('value', Utils.isValue(item.value) ? item.value : "").appendTo(parent);
-        a = $("<a>").html(item.text).appendTo(l).addClass(item.className);
+        l = $("<li>").addClass(o.clsOption).data("option", item).data("text", item.text).data('value', Utils.isValue(item.value) ? item.value : "").appendTo(parent);
+        a = $("<a>").html(html).appendTo(l).addClass(item.className);
 
-        if (option.is(":selected")) {
-            element.val(item.value);
-            input.val(item.text).trigger("change");
-            element.trigger("change");
-            l.addClass("active");
+        if (item.getAttribute("selected") !== null) {
+            if (multiple) {
+                l.addClass("d-none");
+                selected_item = $("<div>").addClass("selected-item").html("<span class='title'>"+html+"</span>").appendTo(input);
+                selected_item.data("option", l);
+                $("<span>").addClass("remover").html("&times;").appendTo(selected_item);
+            } else {
+                element.val(item.value);
+                input.html(html);
+                element.trigger("change");
+                l.addClass("active");
+            }
         }
 
         a.appendTo(l);
@@ -13989,10 +14038,16 @@ var Select = {
         var prev = element.prev();
         var parent = element.parent();
         var container = $("<div>").addClass("select " + element[0].className).addClass(o.clsElement);
-        var multiple = element.prop("multiple");
+        var multiple = element[0].multiple;
         var select_id = Utils.elementId("select");
+        var buttons = $("<div>").addClass("button-group");
+        var input, drop_container, list, filter_input;
 
         container.attr("id", select_id).addClass("dropdown-toggle");
+
+        if (multiple) {
+            container.addClass("multiple");
+        }
 
         if (prev.length === 0) {
             parent.prepend(container);
@@ -14002,75 +14057,78 @@ var Select = {
 
         element.appendTo(container);
         element.addClass(o.clsSelect);
+        buttons.appendTo(container);
 
-        if (multiple === false) {
+        input = $("<div>").addClass("select-input").attr("name", "__" + select_id + "__");
+        drop_container = $("<div>").addClass("drop-container");
+        list = $("<ul>").addClass("d-menu").addClass(o.clsDropList).css({
+            "max-height": o.dropHeight
+        });
+        filter_input = $("<input type='text' data-role='input'>").attr("placeholder", o.filterPlaceholder);
 
-            var input = $("<input>").attr("placeholder", o.placeholder).attr("type", "text").attr("name", "__" + select_id + "__").prop("readonly", true);
-            var drop_container = $("<div>").addClass("drop-container");
-            var list = $("<ul>").addClass("d-menu").css({
-                "max-height": o.dropHeight
-            });
-            var filter_input = $("<input type='text' data-role='input'>").attr("placeholder", o.filterPlaceholder);
+        container.append(input);
+        container.append(drop_container);
 
-            container.append(input);
-            container.append(drop_container);
+        drop_container.append(filter_input);
 
-            drop_container.append(filter_input);
-
-            if (o.filter !== true) {
-                filter_input.hide();
-            }
-
-            drop_container.append(list);
-
-            $.each(element.children(), function(){
-                if (this.tagName === "OPTION") {
-                    that._addOption(this, list);
-                } else if (this.tagName === "OPTGROUP") {
-                    that._addOptionGroup(this, list);
-                }
-            });
-
-            drop_container.dropdown({
-                duration: o.duration,
-                toggleElement: "#"+select_id,
-                onDrop: function(){
-                    var dropped, target;
-
-                    dropped = $(".select .drop-container");
-                    $.each(dropped, function(){
-                        var drop = $(this);
-                        if (drop.is(drop_container)) {
-                            return ;
-                        }
-                        drop.data('dropdown').close();
-                    });
-
-                    filter_input.val("").trigger(Metro.events.keyup).focus();
-
-                    target = list.find("li.active").length > 0 ? $(list.find("li.active")[0]) : undefined;
-                    if (target !== undefined) {
-                        list.scrollTop(0);
-                        setTimeout(function(){
-                            list.animate({
-                                scrollTop: target.position().top - ( (list.height() - target.height() )/ 2)
-                            }, 100);
-                        }, 200);
-                    }
-
-                    Utils.exec(o.onDrop, [list, element], list[0]);
-                },
-                onUp: function(){
-                    Utils.exec(o.onUp, [list, element], list[0]);
-                }
-            });
-
-            this.list = list;
+        if (o.filter !== true) {
+            filter_input.hide();
         }
+
+        drop_container.append(list);
+
+        $.each(element.children(), function(){
+            if (this.tagName === "OPTION") {
+                that._addOption(this, list);
+            } else if (this.tagName === "OPTGROUP") {
+                that._addOptionGroup(this, list);
+            }
+        });
+
+        drop_container.dropdown({
+            duration: o.duration,
+            toggleElement: "#"+select_id,
+            onDrop: function(){
+                var dropped, target;
+
+                dropped = $(".select .drop-container");
+                $.each(dropped, function(){
+                    var drop = $(this);
+                    if (drop.is(drop_container)) {
+                        return ;
+                    }
+                    drop.data('dropdown').close();
+                });
+
+                filter_input.val("").trigger(Metro.events.keyup).focus();
+
+                target = list.find("li.active").length > 0 ? $(list.find("li.active")[0]) : undefined;
+                if (target !== undefined) {
+                    list.scrollTop(0);
+                    setTimeout(function(){
+                        list.animate({
+                            scrollTop: target.position().top - ( (list.height() - target.height() )/ 2)
+                        }, 100);
+                    }, 200);
+                }
+
+                Utils.exec(o.onDrop, [list, element], list[0]);
+            },
+            onUp: function(){
+                Utils.exec(o.onUp, [list, element], list[0]);
+            }
+        });
+
+        this.list = list;
 
         if (o.prepend !== "") {
             var prepend = Utils.isTag(o.prepend) ? $(o.prepend) : $("<span>"+o.prepend+"</span>");
             prepend.addClass("prepend").addClass(o.clsPrepend).appendTo(container);
+        }
+
+        if (o.append !== "") {
+            var append = Utils.isTag(o.append) ? $(o.append) : $("<span>"+o.append+"</span>");
+            append.addClass("append").addClass(o.clsAppend).appendTo(container);
         }
 
         if (o.copyInlineStyles === true) {
@@ -14092,10 +14150,10 @@ var Select = {
     },
 
     _createEvents: function(){
-        var element = this.element, o = this.options;
+        var that = this, element = this.element, o = this.options;
         var container = element.closest(".select");
         var drop_container = container.find(".drop-container");
-        var input = element.siblings("input");
+        var input = element.siblings(".select-input");
         var filter_input = drop_container.find("input");
         var list = drop_container.find("ul");
 
@@ -14104,8 +14162,7 @@ var Select = {
             e.stopPropagation();
         });
 
-        input.on(Metro.events.blur, function(){container.removeClass("focused");});
-        input.on(Metro.events.focus, function(){container.addClass("focused");});
+        input.on(Metro.events.click, function(){container.toggleClass("focused");});
         filter_input.on(Metro.events.blur, function(){container.removeClass("focused");});
         filter_input.on(Metro.events.focus, function(){container.addClass("focused");});
 
@@ -14118,14 +14175,43 @@ var Select = {
             var leaf = $(this);
             var val = leaf.data('value');
             var txt = leaf.data('text');
+            var html = leaf.children('a').html();
+            var selected_item;
 
-            list.find("li.active").removeClass("active");
-            leaf.addClass("active");
-            input.val(txt).trigger("change");
-            element.val(val);
-            element.trigger("change");
-            drop_container.data("dropdown").close();
+            if (element[0].multiple) {
+                leaf.addClass("d-none");
+                selected_item = $("<div>").addClass("selected-item").html("<span class='title'>"+html+"</span>").appendTo(input);
+                selected_item.data("option", leaf);
+                $("<span>").addClass("remover").html("&times;").appendTo(selected_item);
+                $.each(element.find("option"), function(){
+                    if (this === leaf.data("option")) {
+                        this.selected = true;
+                    }
+                });
+            } else {
+                list.find("li.active").removeClass("active");
+                leaf.addClass("active");
+                input.html(html);
+                element.val(val);
+                element.trigger("change");
+                drop_container.data("dropdown").close();
+            }
+
             Utils.exec(o.onChange, [val], element[0]);
+        });
+
+        input.on("click", ".selected-item .remover", function(e){
+            var item = $(this).closest(".selected-item");
+            var leaf = item.data("option");
+            leaf.removeClass("d-none");
+            $.each(element.find("option"), function(){
+                if (this === leaf.data("option")) {
+                    this.selected = false;
+                }
+            });
+            item.remove();
+            e.preventDefault();
+            e.stopPropagation();
         });
 
         filter_input.on(Metro.events.keyup, function(){
@@ -14149,14 +14235,19 @@ var Select = {
         });
     },
 
+    reset: function(){
+        var that = this, element = this.element, o = this.options;
+        //TODO
+    },
+
     disable: function(){
         this.element.data("disabled", true);
-        this.element.parent().addClass("disabled");
+        this.element.closest(".select").addClass("disabled");
     },
 
     enable: function(){
         this.element.data("disabled", false);
-        this.element.parent().removeClass("disabled");
+        this.element.closest(".select").removeClass("disabled");
     },
 
     val: function(v){
@@ -14235,13 +14326,13 @@ var Select = {
         var element = this.element;
         var container = element.closest(".select");
         var drop_container = container.find(".drop-container");
-        var input = element.siblings("input");
+        var input = element.siblings(".select-input");
         var filter_input = drop_container.find("input");
         var list = drop_container.find("ul");
 
         container.off(Metro.events.click);
-        input.off(Metro.events.blur);
-        input.off(Metro.events.focus);
+        container.off(Metro.events.click, ".input-clear-button");
+        input.off(Metro.events.click);
         filter_input.off(Metro.events.blur);
         filter_input.off(Metro.events.focus);
         list.off(Metro.events.click, "li");
@@ -16103,6 +16194,7 @@ var Table = {
         source: null,
 
         filterMinLength: 1,
+        filterThreshold: 500,
 
         showRowsSteps: true,
         showSearch: true,
@@ -16220,6 +16312,9 @@ var Table = {
             Utils.exec(o.onDataLoad, [o.source], element[0]);
 
             $.get(o.source, function(data){
+                if (typeof data !== "object") {
+                    throw new Error("Data for table is not a object");
+                }
                 that._build(data);
                 Utils.exec(o.onDataLoaded, [o.source, data], element[0]);
             }).fail(function( jqXHR, textStatus, errorThrown) {
@@ -16295,6 +16390,8 @@ var Table = {
         var item_check, item_rownum;
         var service = [];
 
+        this.service = {};
+
         item_rownum = {
             title: "#",
             format: undefined,
@@ -16347,19 +16444,12 @@ var Table = {
         return view;
     },
 
-    _createInspector: function(){
-        var that = this, o = this.options;
-        var component = this.component;
-        var inspector, table = $("<table>").addClass("table compact"), row, actions, tds = [], cells, j;
+    _createInspectorItems: function(table){
+        var that = this;
+        var j, tds = [], row;
+        var cells = this.heads;
 
-        inspector = $("<div data-role='draggable' data-drag-element='h3' data-drag-area='body'>").addClass("table-inspector");
-
-        $("<h3 class='text-light'>"+o.inspectorTitle+"</h3>").appendTo(inspector);
-        $("<hr class='thin bg-lightGray'>").appendTo(inspector);
-
-        table.appendTo(inspector);
-
-        cells = this.heads;
+        table.html("");
 
         for (j = 0; j < cells.length; j++){
             tds[j] = null;
@@ -16383,6 +16473,24 @@ var Table = {
         for (j = 0; j < cells.length; j++){
             tds[j].appendTo(table);
         }
+    },
+
+    _createInspector: function(){
+        var o = this.options;
+        var component = this.component;
+        var inspector, table, tbody, actions;
+
+        inspector = $("<div data-role='draggable' data-drag-element='h3' data-drag-area='body'>").addClass("table-inspector");
+
+        $("<h3 class='text-light'>"+o.inspectorTitle+"</h3>").appendTo(inspector);
+        $("<hr class='thin bg-lightGray'>").appendTo(inspector);
+
+        table = $("<table>").addClass("table subcompact");
+        tbody = $("<tbody>").appendTo(table);
+
+        table.appendTo(inspector);
+
+        this._createInspectorItems(tbody);
 
         $("<hr class='thin bg-lightGray'>").appendTo(inspector);
         actions = $("<div class='inspector-actions'>").appendTo(inspector);
@@ -16398,38 +16506,9 @@ var Table = {
     },
 
     _resetInspector: function(){
-        var that = this;
         var inspector = this.inspector;
-        var table = inspector.find("table");
-        var tds = [], cells, j, row;
-        var view = this.view;
-
-        table.html("");
-        cells = this.heads;
-
-        for (j = 0; j < cells.length; j++){
-            tds[j] = null;
-        }
-
-        $.each(cells, function(i){
-            row = $("<tr>");
-            row.data('index', i);
-            row.data('index-view', i);
-            $("<td>").html("<input type='checkbox' data-role='checkbox' name='column_show_check[]' value='"+i+"' "+(Utils.bool(view[i]['show']) ? "checked" : "")+">").appendTo(row);
-            $("<td>").html(this.title).appendTo(row);
-            $("<td>").html("<input type='number' name='column_size' value='"+view[i]['size']+"' data-index='"+i+"'>").appendTo(row);
-            $("<td>").html("" +
-                "<button class='button mini js-table-inspector-field-up' type='button'><span class='mif-arrow-up'></span></button>" +
-                "<button class='button mini js-table-inspector-field-down' type='button'><span class='mif-arrow-down'></span></button>" +
-                "").appendTo(row);
-            tds[view[i]['index-view']] = row;
-        });
-
-        //
-        for (j = 0; j < cells.length; j++){
-            tds[j].appendTo(table);
-        }
-
+        var table = inspector.find("table tbody");
+        this._createInspectorItems(table);
         this._createInspectorEvents();
     },
 
@@ -16579,10 +16658,7 @@ var Table = {
             if (Utils.isValue(item.format)) {th.attr("data-format", item.format);}
             if (Utils.isValue(item.name)) {th.attr("data-name", item.name);}
             if (Utils.isValue(item.colspan)) {th.attr("colspan", item.colspan);}
-            if (Utils.isValue(view[cell_index]['size'])) {th.css({
-                    width: view[cell_index]['size']
-                })
-            }
+            if (Utils.isValue(view[cell_index]['size'])) {th.css({width: view[cell_index]['size']});}
             if (item.sortable === true) {
                 classes.push("sortable-column");
 
@@ -16717,12 +16793,12 @@ var Table = {
         var bottom_block = $("<div>").addClass("table-bottom").addClass(o.clsTableBottom).insertAfter(element);
         var info, pagination;
 
-        info = $("<div>").addClass("table-info").addClass(o.clsTableInfo).appendTo(bottom_block);
+        info = Utils.isValue(this.wrapperInfo) ? this.wrapperInfo : $("<div>").addClass("table-info").addClass(o.clsTableInfo).appendTo(bottom_block);
         if (o.showTableInfo !== true) {
             info.hide();
         }
 
-        pagination = $("<div>").addClass("table-pagination").addClass(o.clsTablePagination).appendTo(bottom_block);
+        pagination = Utils.isValue(this.wrapperPagination) ? this.wrapperPagination : $("<div>").addClass("table-pagination").addClass(o.clsTablePagination).appendTo(bottom_block);
         if (o.showPagination !== true) {
             pagination.hide();
         }
@@ -16906,13 +16982,20 @@ var Table = {
             Utils.exec(o.onCheckClickAll, [status], this);
         });
 
-        var _search = function(){
+        var input_interval;
+
+        var _search = function(e){
             that.filterString = this.value.trim().toLowerCase();
+
             if (that.filterString[that.filterString.length - 1] === ":") {
                 return ;
             }
-            that.currentPage = 1;
-            that._draw();
+
+            clearInterval(input_interval);
+            setTimeout(function(){
+                that.currentPage = 1;
+                that._draw();
+            }, o.filterThreshold);
         };
 
         search.on(Metro.events.inputchange, _search);
@@ -16927,6 +17010,9 @@ var Table = {
         function pageLinkClick(l){
             var link = $(l);
             var item = link.parent();
+            if (that.filteredItems.length === 0) {
+                return ;
+            }
 
             if (item.hasClass("active")) {
                 return ;
@@ -17223,6 +17309,11 @@ var Table = {
         if (this.currentPage === this.pagesCount) {
             next.addClass("disabled");
         }
+
+        if (this.filteredItems.length === 0) {
+            pagination.addClass("disabled");
+            pagination.children().addClass("disabled");
+        }
     },
 
     _filter: function(){
@@ -17324,10 +17415,9 @@ var Table = {
                 }
 
                 $.each(cells, function(cell_index){
-                    var cell_wrapper;
                     if (o.cellWrapper === true) {
                         td = $("<td>");
-                        cell_wrapper = $("<div>").addClass("cell-wrapper").html(this).appendTo(td);
+                        $("<div>").addClass("cell-wrapper").html(this).appendTo(td);
                     } else {
                         td = $("<td>").html(this);
                     }
@@ -17751,7 +17841,26 @@ var Table = {
     },
 
     changeAttribute: function(attributeName){
+        var that = this, element = this.element, o = this.options;
 
+        function dataCheck(){
+            o.check = Utils.bool(element.attr("data-check"));
+            that._service();
+            that._createTableHeader();
+            that._draw();
+        }
+
+        function dataRownum(){
+            o.rownum = Utils.bool(element.attr("data-rownum"));
+            that._service();
+            that._createTableHeader();
+            that._draw();
+        }
+
+        switch (attributeName) {
+            case "data-check": dataCheck(); break;
+            case "data-rownum": dataRownum(); break;
+        }
     }
 };
 
@@ -17870,8 +17979,12 @@ var Tabs = {
 
         element.on(Metro.events.click, "a", function(e){
             var link = $(this);
-            var href = link.attr("href");
+            var href = link.attr("href").trim();
             var tab = link.parent("li");
+
+            if (tab.hasClass("active")) {
+                e.preventDefault();
+            }
 
             if (element.data('expanded') === true) {
                 element.removeClass("expand");
@@ -17883,7 +17996,7 @@ var Tabs = {
                 return false;
             }
 
-            if (!Utils.isUrl(href)) {
+            if (Utils.isValue(href) && href[0] === "#") {
                 that._open(tab);
                 e.preventDefault();
             }
@@ -17936,7 +18049,7 @@ var Tabs = {
             if (t.length > 0) t.hide();
         });
 
-        if (target !== "#") {
+        if (target !== "#" && target[0] === "#") {
             $(target).show();
         }
 
@@ -17951,6 +18064,231 @@ var Tabs = {
 };
 
 Metro.plugin('tabs', Tabs);
+
+// Source: js/plugins/tag-input.js
+var TagInput = {
+    init: function( options, elem ) {
+        this.options = $.extend( {}, this.options, options );
+        this.elem  = elem;
+        this.element = $(elem);
+        this.values = [];
+
+        this._setOptionsFromDOM();
+        this._create();
+
+        return this;
+    },
+
+    options: {
+        randomColor: false,
+        maxTags: 0,
+        tagSeparator: ",",
+        clsTag: "",
+        clsTagTitle: "",
+        clsTagRemover: "",
+        onBeforeTagAdd: Metro.noop_true,
+        onTagAdd: Metro.noop,
+        onBeforeTagRemove: Metro.noop_true,
+        onTagRemove: Metro.noop,
+        onTag: Metro.noop,
+        onTagInputCreate: Metro.noop
+    },
+
+    _setOptionsFromDOM: function(){
+        var element = this.element, o = this.options;
+
+        $.each(element.data(), function(key, value){
+            if (key in o) {
+                try {
+                    o[key] = JSON.parse(value);
+                } catch (e) {
+                    o[key] = value;
+                }
+            }
+        });
+    },
+
+    _create: function(){
+        var element = this.element, o = this.options;
+
+        this._createStructure();
+        this._createEvents();
+
+        Utils.exec(o.onTagInputCreate, [element], element[0]);
+    },
+
+    _createStructure: function(){
+        var that = this, element = this.element, o = this.options;
+        var container, input;
+        var values = element.val().trim();
+
+        container = $("<div>").addClass("tag-input "  + element[0].className).insertBefore(element);
+        element.appendTo(container);
+
+        element[0].className = "";
+
+        element.addClass("original-input");
+        input = $("<input type='text'>").addClass("input-wrapper");
+        input.appendTo(container);
+
+        if (Utils.isValue(values)) {
+            $.each(Utils.strToArray(values, o.tagSeparator), function(){
+                that._addTag(this);
+            })
+        }
+    },
+
+    _createEvents: function(){
+        var that = this, element = this.element;
+        var container = element.closest(".tag-input");
+        var input = container.find(".input-wrapper");
+
+        input.on(Metro.events.focus, function(){
+            container.addClass("focused");
+        });
+
+        input.on(Metro.events.blur, function(){
+            container.removeClass("focused");
+        });
+
+        input.on(Metro.events.keyup, function(e){
+            var val = input.val().trim();
+
+            if (val === "") {return ;}
+
+            if ([13, 188].indexOf(e.keyCode) === -1) {
+                return ;
+            }
+
+            input.val("");
+            that._addTag(val.replace(",", ""));
+        });
+
+        container.on(Metro.events.click, ".tag .remover", function(){
+            var tag = $(this).closest(".tag");
+            that._delTag(tag);
+        });
+
+        container.on(Metro.events.click, function(){
+            input.focus();
+        });
+    },
+
+    _addTag: function(val){
+        var element = this.element, o = this.options;
+        var container = element.closest(".tag-input");
+        var input = container.find(".input-wrapper");
+        var tag, title, remover;
+
+        if (o.maxTags > 0 && this.values.length === o.maxTags) {
+            return ;
+        }
+
+        if (!Utils.exec(o.onBeforeTagAdd, [val, this.values], element[0])) {
+            return ;
+        }
+
+
+        tag = $("<span>").addClass("tag").addClass(o.clsTag).insertBefore(input);
+        tag.data("value", val);
+
+        title = $("<span>").addClass("title").addClass(o.clsTagTitle).html(val);
+        remover = $("<span>").addClass("remover").addClass(o.clsTagRemover).html("&times;");
+
+        title.appendTo(tag);
+        remover.appendTo(tag);
+
+        if (o.randomColor === true) {
+            var colors = Colors.colors(Colors.PALETTES.ALL), bg, fg, bg_r;
+
+            bg = colors[Utils.random(0, colors.length - 1)];
+            bg_r = Colors.darken(bg, 15);
+            fg = Colors.isDark(bg) ? "#ffffff" : "#000000";
+
+            tag.css({
+                backgroundColor: bg,
+                color: fg
+            });
+            remover.css({
+                backgroundColor: bg_r,
+                color: fg
+            });
+        }
+
+        this.values.push(val);
+        element.val(this.values.join(o.tagSeparator));
+
+        Utils.exec(o.onTagAdd, [tag, val, this.values], element[0]);
+        Utils.exec(o.onTag, [tag, val, this.values], element[0]);
+    },
+
+    _delTag: function(tag) {
+        var element = this.element, o = this.options;
+        var val = tag.data("value");
+
+        if (!Utils.exec(o.onBeforeTagAdd, [tag, val, this.values, tag], element[0])) {
+            return ;
+        }
+
+        Utils.arrayDelete(this.values, val);
+        element.val(this.values.join(o.tagSeparator));
+
+        Utils.exec(o.onTagRemove, [tag, val, this.values], element[0]);
+        Utils.exec(o.onTag, [tag, val, this.values], element[0]);
+        tag.remove();
+    },
+
+    tags: function(){
+        return this.values;
+    },
+
+    val: function(v){
+        var that = this, o = this.options;
+
+        if (!Utils.isValue(v)) {
+            return this.tags();
+        }
+
+        this.values = [];
+
+        if (Utils.isValue(values)) {
+            $.each(Utils.strToArray(values, o.tagSeparator), function(){
+                that._addTag(this);
+            })
+        }
+    },
+
+    clear: function(){
+        var element = this.element;
+        var container = element.closest(".tag-input");
+
+        this.values = [];
+        element.val("");
+
+        container.find(".tag").remove();
+    },
+
+    changeAttribute: function(attributeName){
+
+    },
+
+    destroy: function(){
+        var element = this.element;
+        var container = element.closest(".tag-input");
+        var input = container.find(".input-wrapper");
+
+        input.off(Metro.events.focus);
+        input.off(Metro.events.blur);
+        input.off(Metro.events.keydown);
+        container.off(Metro.events.click, ".tag .remover");
+        container.off(Metro.events.click);
+
+        element.insertBefore(container);
+        container.remove();
+    }
+};
+
+Metro.plugin('taginput', TagInput);
 
 // Source: js/plugins/textarea.js
 var Textarea = {
