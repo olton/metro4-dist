@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.18 build 695 (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.19 build 696 (https://metroui.org.ua)
  * Copyright 2018 Sergey Pimenov
  * Licensed under MIT
  */
@@ -80,8 +80,8 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.18",
-    versionFull: "4.2.18.695 ",
+    version: "4.2.19",
+    versionFull: "4.2.19.696 ",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -168,6 +168,28 @@ var Metro = {
         scrollStop: 'scrollstop.metro',
         mousewheel: 'mousewheel.metro',
         inputchange: "change.metro input.metro propertychange.metro cut.metro paste.metro copy.metro"
+    },
+
+    keyCode: {
+        BACKSPACE: 8,
+        TAB: 9,
+        ENTER: 13,
+        SHIFT: 16,
+        CTRL: 17,
+        ALT: 18,
+        BREAK: 19,
+        CAPS: 20,
+        ESCAPE: 27,
+        SPACE: 32,
+        PAGEUP: 33,
+        PAGEDOWN: 34,
+        END: 35,
+        HOME: 36,
+        LEFT_ARROW: 37,
+        UP_ARROW: 38,
+        RIGHT_ARROW: 39,
+        DOWN_ARROW: 40,
+        COMMA: 188
     },
 
     media_queries: {
@@ -1860,7 +1882,7 @@ Date.prototype.format = function(format, locale){
         zeroPad = function(nNum, nPad) {
             return ('' + (Math.pow(10, nPad) + nNum)).slice(1);
         };
-    return format.replace(/%[a-z]/gi, function(sMatch) {
+    return format.replace(/(%[a-z])/gi, function(sMatch) {
         return {
             '%a': aDays[nDay].slice(0,3),
             '%A': aDays[nDay],
@@ -1869,21 +1891,27 @@ Date.prototype.format = function(format, locale){
             '%c': date.toUTCString(),
             '%C': Math.floor(nYear/100),
             '%d': zeroPad(nDate, 2),
+            // 'dd': zeroPad(nDate, 2),
             '%e': nDate,
             '%F': date.toISOString().slice(0,10),
             '%G': getThursday().getFullYear(),
             '%g': ('' + getThursday().getFullYear()).slice(2),
             '%H': zeroPad(nHour, 2),
+            // 'HH': zeroPad(nHour, 2),
             '%I': zeroPad((nHour+11)%12 + 1, 2),
             '%j': zeroPad(aDayCount[nMonth] + nDate + ((nMonth>1 && isLeapYear()) ? 1 : 0), 3),
             '%k': '' + nHour,
             '%l': (nHour+11)%12 + 1,
             '%m': zeroPad(nMonth + 1, 2),
+            // 'mm': zeroPad(nMonth + 1, 2),
             '%M': zeroPad(date.getMinutes(), 2),
+            // 'MM': zeroPad(date.getMinutes(), 2),
             '%p': (nHour<12) ? 'AM' : 'PM',
             '%P': (nHour<12) ? 'am' : 'pm',
             '%s': Math.round(date.getTime()/1000),
+            // 'ss': Math.round(date.getTime()/1000),
             '%S': zeroPad(date.getSeconds(), 2),
+            // 'SS': zeroPad(date.getSeconds(), 2),
             '%u': nDay || 7,
             '%V': (function() {
                 var target = getThursday(),
@@ -1897,7 +1925,9 @@ Date.prototype.format = function(format, locale){
             '%x': date.toLocaleDateString(),
             '%X': date.toLocaleTimeString(),
             '%y': ('' + nYear).slice(2),
+            // 'yy': ('' + nYear).slice(2),
             '%Y': nYear,
+            // 'YYYY': nYear,
             '%z': date.toTimeString().replace(/.+GMT([+-]\d+).+/, '$1'),
             '%Z': date.toTimeString().replace(/.+\((.+?)\)$/, '$1')
         }[sMatch] || sMatch;
@@ -3832,17 +3862,30 @@ var d = new Date().getTime();
         Metro.locales = $.extend( {}, Metro.locales, locale );
     },
 
-    strToArray: function(str, delimiter){
+    strToArray: function(str, delimiter, type, format){
         var a;
 
         if (!this.isValue(delimiter)) {
             delimiter = ",";
         }
 
+        if (!this.isValue(type)) {
+            type = "string";
+        }
+
         a = (""+str).split(delimiter);
 
         return a.map(function(s){
-            return s.trim();
+            var result;
+
+            switch (type) {
+                case "integer": result = parseInt(s); break;
+                case "float": result = parseFloat(s); break;
+                case "date": result = !Utils.isValue(format) ? new Date(s) : s.toDate(format); break;
+                default: result = s.trim();
+            }
+
+            return result;
         })
     },
 
@@ -7054,9 +7097,22 @@ var Checkbox = {
     },
 
     changeAttribute: function(attributeName){
+        var that = this, element = this.element, o = this.options;
+        var parent = element.parent();
+
+        var changeStyle = function(){
+            var new_style = parseInt(element.attr("data-style"));
+
+            if (!Utils.isInt(new_style)) return;
+
+            o.style = new_style;
+            parent.removeClass("style1 style2").addClass("style"+new_style);
+        };
+
         switch (attributeName) {
             case 'disabled': this.toggleState(); break;
             case 'data-indeterminate': this.toggleIndeterminate(); break;
+            case 'data-style': changeStyle(); break;
         }
     },
 
@@ -11645,6 +11701,7 @@ var Listview = {
 
     options: {
         selectable: false,
+        checkStyle: 1,
         effect: "slide",
         duration: 100,
         view: Metro.listView.LIST,
@@ -11762,7 +11819,7 @@ var Listview = {
             }
 
             if (node.hasClass("node")) {
-                var cb = $("<input data-role='checkbox'>");
+                var cb = $("<input type='checkbox' data-role='checkbox' data-style='"+o.checkStyle+"'>");
                 cb.data("node", node);
                 node.prepend(cb);
             }
@@ -11884,7 +11941,7 @@ var Listview = {
 
         new_node.addClass("node").appendTo(target);
 
-        var cb = $("<input>");
+        var cb = $("<input type='checkbox'>");
         cb.data("node", new_node);
         new_node.prepend(cb);
         cb.checkbox();
@@ -11948,22 +12005,42 @@ var Listview = {
         Utils.exec(o.onNodeClean, [node, element]);
     },
 
-    changeView: function(){
-        var element = this.element, o = this.options;
-        var new_view = "view-"+element.attr("data-view");
-        this.view(new_view);
+    getSelected: function(){
+        var that = this, element = this.element, o = this.options;
+        var nodes = [];
+
+        $.each(element.find(":checked"), function(){
+            var check = $(this);
+            nodes.push(check.closest(".node")[0])
+        });
+
+        return nodes;
     },
 
-    changeSelectable: function(){
-        var element = this.element, o = this.options;
-        o.selectable = JSON.parse(element.attr("data-selectable")) === true;
-        this.toggleSelectable();
+    clearSelected: function(){
+        this.element.find(":checked").prop("checked", false);
+    },
+
+    selectAll: function(mode){
+        this.element.find(".node > .checkbox input").prop("checked", mode !== false);
     },
 
     changeAttribute: function(attributeName){
+        var that = this, element = this.element, o = this.options;
+
+        var changeView = function(){
+            var new_view = "view-"+element.attr("data-view");
+            this.view(new_view);
+        };
+
+        var changeSelectable = function(){
+            o.selectable = JSON.parse(element.attr("data-selectable")) === true;
+            this.toggleSelectable();
+        };
+
         switch (attributeName) {
-            case "data-view": this.changeView(); break;
-            case "data-selectable": this.changeSelectable(); break;
+            case "data-view": changeView(); break;
+            case "data-selectable": changeSelectable(); break;
         }
     }
 };
@@ -12753,6 +12830,7 @@ var Popover = {
     options: {
         popoverText: "",
         popoverHide: 3000,
+        popoverTimeout: 100,
         popoverOffset: 10,
         popoverTrigger: Metro.popoverEvents.HOVER,
         popoverPosition: Metro.position.TOP,
@@ -12797,12 +12875,14 @@ var Popover = {
             if (that.popover !== null || that.popovered === true) {
                 return ;
             }
-            that.createPopover();
-            if (o.popoverHide > 0) {
-                setTimeout(function(){
-                    that.removePopover();
-                }, o.popoverHide);
-            }
+            setTimeout(function(){
+                that.createPopover();
+                if (o.popoverHide > 0) {
+                    setTimeout(function(){
+                        that.removePopover();
+                    }, o.popoverHide);
+                }
+            }, o.popoverTimeout);
         });
 
         if (o.hideOnLeave === true && !Utils.isTouchDevice()) {
@@ -12907,12 +12987,14 @@ var Popover = {
             return ;
         }
 
-        this.createPopover();
-        if (o.popoverHide > 0) {
-            setTimeout(function(){
-                that.removePopover();
-            }, o.popoverHide);
-        }
+        setTimeout(function(){
+            that.createPopover();
+            if (o.popoverHide > 0) {
+                setTimeout(function(){
+                    that.removePopover();
+                }, o.popoverHide);
+            }
+        }, o.popoverTimeout);
     },
 
     hide: function(){
@@ -13197,8 +13279,21 @@ var Radio = {
     },
 
     changeAttribute: function(attributeName){
+        var that = this, element = this.element, o = this.options;
+        var parent = element.parent();
+
+        var changeStyle = function(){
+            var new_style = parseInt(element.attr("data-style"));
+
+            if (!Utils.isInt(new_style)) return;
+
+            o.style = new_style;
+            parent.removeClass("style1 style2").addClass("style"+new_style);
+        };
+
         switch (attributeName) {
             case 'disabled': this.toggleState(); break;
+            case 'data-style': changeStyle(); break;
         }
     },
 
@@ -13958,6 +14053,8 @@ var Select = {
         clsOption: "",
         clsOptionGroup: "",
         clsDropList: "",
+        clsSelectedItem: "",
+        clsSelectedItemRemover: "",
         prepend: "",
         append: "",
         placeholder: "",
@@ -14006,9 +14103,9 @@ var Select = {
         if (item.getAttribute("selected") !== null) {
             if (multiple) {
                 l.addClass("d-none");
-                selected_item = $("<div>").addClass("selected-item").html("<span class='title'>"+html+"</span>").appendTo(input);
+                selected_item = $("<div>").addClass("selected-item").addClass(o.clsSelectedItem).html("<span class='title'>"+html+"</span>").appendTo(input);
                 selected_item.data("option", l);
-                $("<span>").addClass("remover").html("&times;").appendTo(selected_item);
+                $("<span>").addClass("remover").addClass(o.clsSelectedItemRemover).html("&times;").appendTo(selected_item);
             } else {
                 element.val(item.value);
                 input.html(html);
@@ -14564,6 +14661,13 @@ Metro['sidebar'] = {
             return ;
         }
         $(el).data("sidebar").toggle();
+    },
+
+    isOpen: function(el){
+        if (!this.isSidebar(el)) {
+            return ;
+        }
+        return $(el).data("sidebar").isOpen();
     }
 };
 
@@ -16588,6 +16692,10 @@ var Table = {
     _createItemsFromJSON: function(source){
         var that = this;
 
+        if (typeof source === "string") {
+            source = JSON.parse(source);
+        }
+
         if (source.header !== undefined) {
             that.heads = source.header;
         } else {
@@ -17538,6 +17646,10 @@ var Table = {
         var need_sort = false;
         var sortable_columns;
 
+        if (!Utils.isValue(review)) {
+            review = true;
+        }
+
         function redraw(){
 
             if (review === true) {
@@ -18058,6 +18170,41 @@ var Tabs = {
         Utils.exec(o.onTab, [tab, element]);
     },
 
+    next: function(){
+        var that = this, element = this.element, o = this.options;
+        var next, active_tab = element.find("li.active");
+
+        next = active_tab.next("li");
+        if (next.length > 0) {
+            this._open(next);
+        }
+    },
+
+    prev: function(){
+        var that = this, element = this.element, o = this.options;
+        var next, active_tab = element.find("li.active");
+
+        next = active_tab.prev("li");
+        if (next.length > 0) {
+            this._open(next);
+        }
+    },
+
+    open: function(tab){
+        var that = this, element = this.element, o = this.options;
+        var tabs = element.find("li");
+
+        if (!Utils.isValue(tab)) {
+            tab = 1;
+        }
+
+        if (Utils.isInt(tab)) {
+            if (Utils.isValue(tabs[tab-1])) this._open($(tabs[tab-1]));
+        } else {
+            this._open($(tab));
+        }
+    },
+
     changeAttribute: function(attributeName){
 
     }
@@ -18083,6 +18230,7 @@ var TagInput = {
         randomColor: false,
         maxTags: 0,
         tagSeparator: ",",
+        tagTrigger: "13,188",
         clsTag: "",
         clsTagTitle: "",
         clsTagRemover: "",
@@ -18139,7 +18287,7 @@ var TagInput = {
     },
 
     _createEvents: function(){
-        var that = this, element = this.element;
+        var that = this, element = this.element, o = this.options;
         var container = element.closest(".tag-input");
         var input = container.find(".input-wrapper");
 
@@ -18156,7 +18304,7 @@ var TagInput = {
 
             if (val === "") {return ;}
 
-            if ([13, 188].indexOf(e.keyCode) === -1) {
+            if (Utils.strToArray(o.tagTrigger, ",", "integer").indexOf(e.keyCode) === -1) {
                 return ;
             }
 
@@ -19567,7 +19715,12 @@ var ValidatorFuncs = {
     not: function(val, not_this){
         return val !== not_this;
     },
-
+    notequals: function(val, val2){
+        return val.trim() !== val2.trim();
+    },
+    equals: function(val, val2){
+        return val.trim() === val2.trim();
+    },
     custom: function(val, func){
         if (Utils.isFunc(func) === false) {
             return false;
@@ -19634,10 +19787,8 @@ var ValidatorFuncs = {
     validate: function(el, result, cb_ok, cb_error, required_mode){
         var this_result = true;
         var input = $(el);
-        var is_control = ValidatorFuncs.is_control(input);
         var funcs = input.data('validate') !== undefined ? String(input.data('validate')).split(" ").map(function(s){return s.trim();}) : [];
         var errors = [];
-        var required = funcs.indexOf('required') !== -1;
 
         if (funcs.length === 0) {
             return true;
@@ -19679,7 +19830,7 @@ var ValidatorFuncs = {
                 f = rule[0]; rule.shift();
                 a = rule.join("=");
 
-                if (f === 'compare') {
+                if (['compare', 'equals', 'notequals'].indexOf(f) > -1) {
                     a = input[0].form.elements[a].value;
                 }
 
@@ -19695,7 +19846,6 @@ var ValidatorFuncs = {
                             this_result = true;
                         }
                     }
-                    // this_result = ValidatorFuncs[f](input.val(), a);
                 }
 
                 if (this_result === false) {
