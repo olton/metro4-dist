@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.20 build 697 (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.21 build 698 (https://metroui.org.ua)
  * Copyright 2018 Sergey Pimenov
  * Licensed under MIT
  */
@@ -88,8 +88,8 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.20",
-    versionFull: "4.2.20.697 ",
+    version: "4.2.21",
+    versionFull: "4.2.21.698 ",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -313,10 +313,6 @@ var Metro = {
 
         this.sheet = Utils.newCssSheet();
 
-        this.observe();
-
-        this.initHotkeys(hotkeys);
-        this.initWidgets(widgets);
 
         window.METRO_MEDIA = [];
         $.each(Metro.media_queries, function(key, query){
@@ -324,6 +320,11 @@ var Metro = {
                 METRO_MEDIA.push(Metro.media_mode[key]);
             }
         });
+
+        this.observe();
+
+        this.initHotkeys(hotkeys);
+        this.initWidgets(widgets);
 
         this.about(true);
 
@@ -1811,6 +1812,19 @@ Array.prototype.unique = function () {
 
     return a;
 };
+
+if (typeof Array.from !== "function") {
+    Array.prototype.from = function() {
+        var i, a = [];
+        if (Utils.isNull(this.length)) {
+            throw new Error("Value is not iterable");
+        }
+        for(i = 0; i < this.length; i++) {
+            a.push(this[i]);
+        }
+        return a;
+    }
+}
 
 /**
  * Number.prototype.format(n, x, s, c)
@@ -4013,6 +4027,10 @@ var d = new Date().getTime();
         return val !== undefined && val !== null && val !== "";
     },
 
+    isNull: function(val){
+        return val === undefined || val === null;
+    },
+
     isNegative: function(val){
         return parseFloat(val) < 0;
     },
@@ -5144,6 +5162,8 @@ var Calendar = {
     },
 
     options: {
+        wide: false,
+        widePoint: null,
         pickerMode: false,
         show: null,
         locale: METRO_LOCALE,
@@ -5251,7 +5271,26 @@ var Calendar = {
 
         this.locale = Metro.locales[o.locale] !== undefined ? Metro.locales[o.locale] : Metro.locales["en-US"];
 
-        this._build();
+        this._drawCalendar();
+        this._bindEvents();
+
+        if (o.wide === true) {
+            element.addClass("calendar-wide");
+        } else {
+            if (!Utils.isNull(o.widePoint) && Utils.mediaExist(o.widePoint)) {
+                element.addClass("calendar-wide");
+            }
+        }
+
+
+        if (this.options.ripple === true) {
+            element.ripple({
+                rippleTarget: ".button, .prev-month, .next-month, .prev-year, .next-year, .day",
+                rippleColor: this.options.rippleColor
+            });
+        }
+
+        Utils.exec(this.options.onCalendarCreate, [this.element]);
     },
 
     _dates2array: function(val, category){
@@ -5267,24 +5306,18 @@ var Calendar = {
         });
     },
 
-    _build: function(){
-        var element = this.element;
-
-        this._drawCalendar();
-        this._bindEvents();
-
-        if (this.options.ripple === true) {
-            element.ripple({
-                rippleTarget: ".button, .prev-month, .next-month, .prev-year, .next-year, .day",
-                rippleColor: this.options.rippleColor
-            });
-        }
-
-        Utils.exec(this.options.onCalendarCreate, [this.element]);
-    },
-
     _bindEvents: function(){
         var that = this, element = this.element, o = this.options;
+
+        $(window).on(Metro.events.resize, function(){
+            if (o.wide !== true) {
+                if (!Utils.isNull(o.widePoint) && Utils.mediaExist(o.widePoint)) {
+                    element.addClass("calendar-wide");
+                } else {
+                    element.removeClass("calendar-wide");
+                }
+            }
+        });
 
         element.on(Metro.events.click, ".prev-month, .next-month, .prev-year, .next-year", function(e){
             var new_date, el = $(this);
@@ -5990,6 +6023,7 @@ var CalendarPicker = {
         this.value = null;
         this.value_date = null;
         this.calendar = null;
+        this.overlay = null;
 
         this._setOptionsFromDOM();
         this._create();
@@ -6002,6 +6036,17 @@ var CalendarPicker = {
     dependencies: ['calendar'],
 
     options: {
+
+        calendarWide: false,
+        calendarWidePoint: null,
+
+
+        dialogMode: false,
+        dialogPoint: 360,
+        dialogOverlay: true,
+        overlayColor: '#000000',
+        overlayAlpha: .5,
+
         locale: METRO_LOCALE,
         size: "100%",
         format: METRO_DATE_FORMAT,
@@ -6018,15 +6063,6 @@ var CalendarPicker = {
         yearsAfter: 100,
         weekStart: METRO_WEEK_START,
         outside: true,
-        clsCalendar: "",
-        clsCalendarHeader: "",
-        clsCalendarContent: "",
-        clsCalendarFooter: "",
-        clsCalendarMonths: "",
-        clsCalendarYears: "",
-        clsToday: "",
-        clsSelected: "",
-        clsExcluded: "",
         ripple: false,
         rippleColor: "#cccccc",
         exclude: null,
@@ -6034,7 +6070,15 @@ var CalendarPicker = {
         maxDate: null,
         special: null,
         showHeader: true,
-        showFooter: true,
+
+        clsCalendar: "",
+        clsCalendarHeader: "",
+        clsCalendarContent: "",
+        clsCalendarMonths: "",
+        clsCalendarYears: "",
+        clsToday: "",
+        clsSelected: "",
+        clsExcluded: "",
 
         onDayClick: Metro.noop,
         onCalendarPickerCreate: Metro.noop,
@@ -6046,7 +6090,7 @@ var CalendarPicker = {
     },
 
     _setOptionsFromDOM: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
 
         $.each(element.data(), function(key, value){
             if (key in o) {
@@ -6060,18 +6104,29 @@ var CalendarPicker = {
     },
 
     _create: function(){
+
+        this._createStructure();
+        this._createEvents();
+    },
+
+    _createStructure: function(){
         var that = this, element = this.element, o = this.options;
         var prev = element.prev();
         var parent = element.parent();
         var container = $("<div>").addClass("input " + element[0].className + " calendar-picker");
         var buttons = $("<div>").addClass("button-group");
         var calendarButton, clearButton, cal = $("<div>").addClass("drop-shadow");
+        var curr = element.val().trim();
 
         if (element.attr("type") === undefined) {
             element.attr("type", "text");
         }
 
-        this.value = Utils.isValue(o.inputFormat) === false ? element.val() : (element.val().toDate(o.inputFormat)).format("%Y/%m/%d");
+        if (!Utils.isValue(curr)) {
+            this.value = (new Date()).format("%Y/%m/%d");
+        } else {
+            this.value = Utils.isValue(o.inputFormat) === false ? curr : (curr.toDate(o.inputFormat)).format("%Y/%m/%d");
+        }
 
         if (Utils.isDate(this.value)) {
             this.value_date = new Date(this.value);
@@ -6090,6 +6145,9 @@ var CalendarPicker = {
         cal.appendTo(container);
 
         cal.calendar({
+            wide: o.calendarWide,
+            widePoint: o.calendarWidePoint,
+
             format: o.format,
             inputFormat: o.inputFormat,
             pickerMode: true,
@@ -6099,15 +6157,17 @@ var CalendarPicker = {
             outside: o.outside,
             buttons: false,
             headerFormat: o.headerFormat,
-            clsCalendar: o.clsCalendar,
+
+            clsCalendar: o.clsCalendar + " calendar-picker",
             clsCalendarHeader: o.clsCalendarHeader,
             clsCalendarContent: o.clsCalendarContent,
-            clsCalendarFooter: o.clsCalendarFooter,
+            clsCalendarFooter: "d-none",
             clsCalendarMonths: o.clsCalendarMonths,
             clsCalendarYears: o.clsCalendarYears,
             clsToday: o.clsToday,
             clsSelected: o.clsSelected,
             clsExcluded: o.clsExcluded,
+
             ripple: o.ripple,
             rippleColor: o.rippleColor,
             exclude: o.exclude,
@@ -6117,9 +6177,12 @@ var CalendarPicker = {
             yearsAfter: o.yearsAfter,
             special: o.special,
             showHeader: o.showHeader,
-            showFooter: o.showFooter,
+            showFooter: false,
             onDayClick: function(sel, day, el){
                 var date = new Date(sel[0]);
+
+                that._removeOverlay();
+
                 that.value = date.format(Metro.utils.isValue(o.inputFormat) ? o.inputFormat : "%Y/%m/%d");
                 that.value_date = date;
                 element.val(date.format(o.format, o.locale));
@@ -6137,46 +6200,14 @@ var CalendarPicker = {
 
         this.calendar = cal;
 
-        calendarButton = $("<button>").addClass("button").attr("tabindex", -1).attr("type", "button").html(o.calendarButtonIcon);
-        calendarButton.appendTo(buttons);
-        container.on(Metro.events.click, "button, input", function(e){
-            if (Utils.isDate(that.value, o.inputFormat) && (cal.hasClass("open") === false && cal.hasClass("open-up") === false)) {
-                cal.css({
-                    visibility: "hidden",
-                    display: "block"
-                });
-                cal.data('calendar').setPreset(that.value);
-                cal.data('calendar').setShow(that.value);
-                cal.data('calendar').setToday(that.value);
-                cal.css({
-                    visibility: "visible",
-                    display: "none"
-                });
-            }
-            if (cal.hasClass("open") === false && cal.hasClass("open-up") === false) {
-                $(".calendar-picker .calendar").removeClass("open open-up").hide();
-                cal.addClass("open");
-                if (Utils.isOutsider(cal) === false) {
-                    cal.addClass("open-up");
-                }
-                cal.show();
-                Utils.exec(o.onCalendarShow, [element, cal]);
-            } else {
-                cal.removeClass("open open-up");
-                cal.hide();
-                Utils.exec(o.onCalendarHide, [element, cal]);
-            }
-            e.preventDefault();
-            e.stopPropagation();
-        });
-
         if (o.clearButton === true) {
-            clearButton = $("<button>").addClass("button").attr("tabindex", -1).attr("type", "button").html(o.clearButtonIcon);
-            clearButton.on(Metro.events.click, function () {
-                element.val("").trigger('change');
-            });
+            clearButton = $("<button>").addClass("button input-clear-button").attr("tabindex", -1).attr("type", "button").html(o.clearButtonIcon);
             clearButton.appendTo(buttons);
         }
+
+        calendarButton = $("<button>").addClass("button").attr("tabindex", -1).attr("type", "button").html(o.calendarButtonIcon);
+        calendarButton.appendTo(buttons);
+
 
         if (element.attr('dir') === 'rtl' ) {
             container.addClass("rtl");
@@ -6204,6 +6235,81 @@ var CalendarPicker = {
         container.addClass(o.clsPicker);
         element.addClass(o.clsInput);
 
+        if (o.dialogOverlay === true) {
+            this.overlay = that._overlay();
+        }
+
+        if (o.dialogMode === true) {
+            container.addClass("dialog-mode");
+        } else {
+            if (Utils.media("(max-width: "+o.dialogPoint+"px)")) {
+                container.addClass("dialog-mode");
+            }
+        }
+    },
+
+    _createEvents: function(){
+        var that = this, element = this.element, o = this.options;
+        var container = element.parent();
+        var clear = container.find(".input-clear-button");
+        var cal = this.calendar;
+
+        $(window).on(Metro.events.resize, function(){
+            if (o.dialogMode !== true) {
+                if (Utils.media("(max-width: " + o.dialogPoint + "px)")) {
+                    container.addClass("dialog-mode");
+                } else {
+                    container.removeClass("dialog-mode");
+                }
+            }
+        });
+
+        if (clear.length > 0) clear.on(Metro.events.click, function(e){
+            element.val("").trigger('change').blur();
+            that.value = (new Date()).format("%Y/%m/%d");
+            that.value_date = new Date(this.value);
+            that.value_date.setHours(0,0,0,0);
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        container.on(Metro.events.click, "button, input", function(e){
+            if (Utils.isDate(that.value, o.inputFormat) && (cal.hasClass("open") === false && cal.hasClass("open-up") === false)) {
+                cal.css({
+                    visibility: "hidden",
+                    display: "block"
+                });
+                cal.data('calendar').setPreset(that.value);
+                cal.data('calendar').setShow(that.value);
+                cal.data('calendar').setToday(that.value);
+                cal.css({
+                    visibility: "visible",
+                    display: "none"
+                });
+            }
+            if (cal.hasClass("open") === false && cal.hasClass("open-up") === false) {
+                if (container.hasClass("dialog-mode")) {
+                    that.overlay.appendTo($('body'));
+                }
+                $(".calendar-picker .calendar").removeClass("open open-up").hide();
+                cal.addClass("open");
+                if (Utils.isOutsider(cal) === false) {
+                    cal.addClass("open-up");
+                }
+                cal.show();
+                Utils.exec(o.onCalendarShow, [element, cal]);
+            } else {
+
+                that._removeOverlay();
+
+                cal.removeClass("open open-up");
+                cal.hide();
+                Utils.exec(o.onCalendarHide, [element, cal]);
+            }
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
         element.on(Metro.events.blur, function(){container.removeClass("focused");});
         element.on(Metro.events.focus, function(){container.addClass("focused");});
         element.on(Metro.events.change, function(){
@@ -6211,8 +6317,29 @@ var CalendarPicker = {
         });
     },
 
+    _overlay: function(){
+        var o = this.options;
+
+        var overlay = $("<div>");
+        overlay.addClass("overlay for-calendar-picker").addClass(o.clsOverlay);
+
+        if (o.overlayColor === 'transparent') {
+            overlay.addClass("transparent");
+        } else {
+            overlay.css({
+                background: Utils.hex2rgba(o.overlayColor, o.overlayAlpha)
+            });
+        }
+
+        return overlay;
+    },
+
+    _removeOverlay: function(){
+        $('body').find('.overlay.for-calendar-picker').remove();
+    },
+
     val: function(v){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
 
         if (v === undefined) {
             return this.value_date;
@@ -6227,7 +6354,7 @@ var CalendarPicker = {
     },
 
     changeValue: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element;
         this.val(element.attr("value"));
     },
 
@@ -6250,8 +6377,8 @@ var CalendarPicker = {
     },
 
     i18n: function(val){
-        var that = this, element = this.element, o = this.options;
-        var hidden = false;
+        var o = this.options;
+        var hidden;
         var cal = this.calendar;
         if (val === undefined) {
             return o.locale;
@@ -6277,30 +6404,30 @@ var CalendarPicker = {
     },
 
     changeAttrLocale: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element;
         this.i18n(element.attr("data-locale"));
     },
 
     changeAttrSpecial: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element;
         var cal = this.calendar.data("calendar");
         cal.setSpecial(element.attr("data-special"));
     },
 
     changeAttrExclude: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element;
         var cal = this.calendar.data("calendar");
         cal.setExclude(element.attr("data-exclude"));
     },
 
     changeAttrMinDate: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element;
         var cal = this.calendar.data("calendar");
         cal.setMinDate(element.attr("data-min-date"));
     },
 
     changeAttrMaxDate: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element;
         var cal = this.calendar.data("calendar");
         cal.setMaxDate(element.attr("data-max-date"));
     },
@@ -6320,7 +6447,11 @@ var CalendarPicker = {
 
 Metro.plugin('calendarpicker', CalendarPicker);
 
-$(document).on(Metro.events.click, function(e){
+$(document).on(Metro.events.click, ".overlay.for-calendar-picker",function(){
+    $(this).remove();
+});
+
+$(document).on(Metro.events.click, function(){
     $(".calendar-picker .calendar").removeClass("open open-up").hide();
 });
 
@@ -7037,10 +7168,9 @@ var Checkbox = {
     options: {
         style: 1,
         caption: "",
-        indeterminate: false,
         captionPosition: "right",
-        disabled: false,
-        clsElement: "",
+        indeterminate: false,
+        clsCheckbox: "",
         clsCheck: "",
         clsCaption: "",
         onCheckboxCreate: Metro.noop
@@ -7093,7 +7223,7 @@ var Checkbox = {
         this.origin.className = element[0].className;
         element[0].className = '';
 
-        checkbox.addClass(o.clsElement);
+        checkbox.addClass(o.clsCheckbox);
         caption.addClass(o.clsCaption);
         check.addClass(o.clsCheck);
 
@@ -7101,7 +7231,7 @@ var Checkbox = {
             element[0].indeterminate = true;
         }
 
-        if (o.disabled === true && element.is(':disabled')) {
+        if (element.is(':disabled')) {
             this.disable();
         } else {
             this.enable();
@@ -7130,10 +7260,6 @@ var Checkbox = {
         }
     },
 
-    toggleIndeterminate: function(){
-        this.element[0].indeterminate = JSON.parse(this.element.attr("data-indeterminate")) === true;
-    },
-
     changeAttribute: function(attributeName){
         var that = this, element = this.element, o = this.options;
         var parent = element.parent();
@@ -7147,9 +7273,13 @@ var Checkbox = {
             parent.removeClass("style1 style2").addClass("style"+new_style);
         };
 
+        var indeterminateState = function(){
+            element[0].indeterminate = JSON.parse(element.attr("data-indeterminate")) === true;
+        };
+
         switch (attributeName) {
             case 'disabled': this.toggleState(); break;
-            case 'data-indeterminate': this.toggleIndeterminate(); break;
+            case 'data-indeterminate': indeterminateState(); break;
             case 'data-style': changeStyle(); break;
         }
     },
@@ -7341,8 +7471,6 @@ var Collapse = {
             } else {
                 that._open(element);
             }
-
-            console.log(e.target.tagName);
 
             if (["INPUT"].indexOf(e.target.tagName) === -1) {
                 e.preventDefault();
@@ -9608,15 +9736,18 @@ var File = {
         this._setOptionsFromDOM();
         this._create();
 
-        Utils.exec(this.options.onFileCreate, [this.element]);
+        Utils.exec(this.options.onFileCreate, [this.element], elem);
 
         return this;
     },
     options: {
-        copyInlineStyles: true,
+        buttonTitle: "Choose file(s)",
         prepend: "",
-        caption: "Choose file",
-        disabled: false,
+        clsComponent: "",
+        clsPrepend: "",
+        clsButton: "",
+        clsCaption: "",
+        copyInlineStyles: true,
         onSelect: Metro.noop,
         onFileCreate: Metro.noop
     },
@@ -9644,8 +9775,8 @@ var File = {
         var that = this, element = this.element, o = this.options;
         var prev = element.prev();
         var parent = element.parent();
-        var container = $("<div>").addClass("file " + element[0].className);
-        var caption = $("<span>").addClass("caption");
+        var container = $("<div>").addClass("file " + element[0].className).addClass(o.clsComponent);
+        var caption = $("<span>").addClass("caption").addClass(o.clsCaption);
         var button;
 
         if (prev.length === 0) {
@@ -9657,8 +9788,9 @@ var File = {
         element.appendTo(container);
         caption.insertBefore(element);
 
-        button = $("<button>").addClass("button").attr("tabindex", -1).attr("type", "button").html(o.caption);
+        button = $("<button>").addClass("button").attr("tabindex", -1).attr("type", "button").html(o.buttonTitle);
         button.appendTo(container);
+        button.addClass(o.clsButton);
 
         if (element.attr('dir') === 'rtl' ) {
             container.addClass("rtl");
@@ -9667,7 +9799,7 @@ var File = {
         element[0].className = '';
 
         if (o.prepend !== "") {
-            var prepend = Utils.isTag(o.prepend) ? $(o.prepend) : $("<span>"+o.prepend+"</span>");
+            var prepend = $("<div>").html(o.prepend);
             prepend.addClass("prepend").addClass(o.clsPrepend).appendTo(container);
         }
 
@@ -9677,7 +9809,7 @@ var File = {
             }
         }
 
-        if (o.disabled === true || element.is(":disabled")) {
+        if (element.is(":disabled")) {
             this.disable();
         } else {
             this.enable();
@@ -9694,7 +9826,7 @@ var File = {
         element.on(Metro.events.change, function(){
             var fi = this;
             var file_names = [];
-            var entry = "";
+            var entry;
             if (fi.files.length === 0) {
                 return ;
             }
@@ -10318,34 +10450,43 @@ var Input = {
         this._setOptionsFromDOM();
         this._create();
 
-        Utils.exec(this.options.onInputCreate, [this.element]);
+        Utils.exec(this.options.onInputCreate, [this.element], this.elem);
 
         return this;
     },
     options: {
         history: false,
         historyPreset: "",
+        historyDivider: "|",
         preventSubmit: false,
         defaultValue: "",
-        clsElement: "",
+        size: "default",
+        prepend: "",
+        append: "",
+        copyInlineStyles: true,
+        searchButton: false,
+        clearButton: true,
+        revealButton: true,
+        clearButtonIcon: "<span class='default-icon-cross'></span>",
+        revealButtonIcon: "<span class='default-icon-eye'></span>",
+        searchButtonIcon: "<span class='default-icon-search'></span>",
+        customButtons: [],
+        searchButtonClick: 'submit',
+
+        clsComponent: "",
         clsInput: "",
         clsPrepend: "",
         clsAppend: "",
         clsClearButton: "",
         clsRevealButton: "",
-        size: "default",
-        prepend: "",
-        append: "",
-        copyInlineStyles: true,
-        clearButton: true,
-        revealButton: true,
-        clearButtonIcon: "<span class='default-icon-cross'></span>",
-        revealButtonIcon: "<span class='default-icon-eye'></span>",
-        customButtons: [],
-        disabled: false,
+        clsCustomButton: "",
+        clsSearchButton: "",
+
         onHistoryChange: Metro.noop,
         onHistoryUp: Metro.noop,
         onHistoryDown: Metro.noop,
+        onClearClick: Metro.noop,
+        onRevealClick: Metro.noop,
         onInputCreate: Metro.noop
     },
 
@@ -10374,10 +10515,10 @@ var Input = {
         var parent = element.parent();
         var container = $("<div>").addClass("input " + element[0].className);
         var buttons = $("<div>").addClass("button-group");
-        var clearButton, revealButton;
+        var clearButton, revealButton, searchButton;
 
         if (Utils.isValue(o.historyPreset)) {
-            $.each(Utils.strToArray(o.historyPreset, ","), function(){
+            $.each(Utils.strToArray(o.historyPreset, o.historyDivider), function(){
                 that.history.push(this);
             });
             that.historyIndex = that.history.length - 1;
@@ -10400,18 +10541,27 @@ var Input = {
             element.val(o.defaultValue);
         }
 
-        if (o.clearButton !== false) {
+        if (o.clearButton === true) {
             clearButton = $("<button>").addClass("button input-clear-button").addClass(o.clsClearButton).attr("tabindex", -1).attr("type", "button").html(o.clearButtonIcon);
             clearButton.appendTo(buttons);
         }
-        if (element.attr('type') === 'password' && o.revealButton !== false) {
+        if (element.attr('type') === 'password' && o.revealButton === true) {
             revealButton = $("<button>").addClass("button input-reveal-button").addClass(o.clsRevealButton).attr("tabindex", -1).attr("type", "button").html(o.revealButtonIcon);
             revealButton.appendTo(buttons);
         }
+        if (o.searchButton === true) {
+            searchButton = $("<button>").addClass("button input-search-button").addClass(o.clsSearchButton).attr("tabindex", -1).attr("type", o.searchButtonClick === 'submit' ? "submit" : "button").html(o.searchButtonIcon);
+            searchButton.appendTo(buttons);
+        }
 
         if (o.prepend !== "") {
-            var prepend = Utils.isTag(o.prepend) ? $(o.prepend) : $("<span>"+o.prepend+"</span>");
+            var prepend = $("<div>").html(o.prepend);
             prepend.addClass("prepend").addClass(o.clsPrepend).appendTo(container);
+        }
+
+        if (o.append !== "") {
+            var append = $("<div>").html(o.append);
+            append.addClass("append").addClass(o.clsAppend).appendTo(container);
         }
 
         if (typeof o.customButtons === "string") {
@@ -10421,15 +10571,20 @@ var Input = {
         if (typeof o.customButtons === "object" && Utils.objectLength(o.customButtons) > 0) {
             $.each(o.customButtons, function(){
                 var item = this;
-                var customButton = $("<button>").addClass("button input-custom-button").addClass(item.cls).attr("tabindex", -1).attr("type", "button").html(item.html);
+                var customButton = $("<button>");
+
+                customButton
+                    .addClass("button input-custom-button")
+                    .addClass(o.clsCustomButton)
+                    .addClass(item.cls)
+                    .attr("tabindex", -1)
+                    .attr("type", "button")
+                    .html(item.html);
+
                 customButton.data("action", item.onclick);
+
                 customButton.appendTo(buttons);
             });
-        }
-
-        if (o.append !== "") {
-            var append = Utils.isTag(o.append) ? $(o.append) : $("<span>"+o.append+"</span>");
-            append.addClass("append").addClass(o.clsAppend).appendTo(container);
         }
 
         if (element.attr('dir') === 'rtl' ) {
@@ -10443,7 +10598,7 @@ var Input = {
             }
         }
 
-        container.addClass(o.clsElement);
+        container.addClass(o.clsComponent);
         element.addClass(o.clsInput);
 
         if (o.size !== "default") {
@@ -10452,7 +10607,7 @@ var Input = {
             });
         }
 
-        if (o.disabled === true || element.is(":disabled")) {
+        if (element.is(":disabled")) {
             this.disable();
         } else {
             this.enable();
@@ -10464,11 +10619,22 @@ var Input = {
         var container = element.closest(".input");
 
         container.on(Metro.events.click, ".input-clear-button", function(){
+            var curr = element.val();
             element.val(Utils.isValue(o.defaultValue) ? o.defaultValue : "").trigger('change').trigger('keyup').focus();
+            Utils.exec(o.onClearClick, [curr, element.val()], element[0]);
         });
 
         container.on(Metro.events.start, ".input-reveal-button", function(){
             element.attr('type', 'text');
+            Utils.exec(o.onRevealClick, [element.val()], element[0]);
+        });
+
+        container.on(Metro.events.start, ".input-search-button", function(){
+            if (o.searchButtonClick !== 'submit') {
+                Utils.exec(o.onSearchButtonClick, [element.val(), $(this)], element[0]);
+            } else {
+                this.form.submit();
+            }
         });
 
         container.on(Metro.events.stop, ".input-reveal-button", function(){
@@ -10521,6 +10687,42 @@ var Input = {
 
         element.on(Metro.events.blur, function(){container.removeClass("focused");});
         element.on(Metro.events.focus, function(){container.addClass("focused");});
+    },
+
+    getHistory: function(){
+        return this.history;
+    },
+
+    getHistoryIndex: function(){
+        return this.historyIndex;
+    },
+
+    setHistoryIndex: function(val){
+        this.historyIndex = val >= this.history.length ? this.history.length - 1 : val;
+    },
+
+    setHistory: function(history, append) {
+        var that = this, o = this.options;
+        if (Utils.isNull(history)) return;
+        if (!Array.isArray(history)) {
+            history = Utils.strToArray(history, o.historyDivider);
+        }
+        if (append === true) {
+            $.each(history, function () {
+                that.history.push(this);
+            })
+        } else{
+            this.history = history;
+        }
+        this.historyIndex = this.history.length - 1;
+    },
+
+    clear: function(){
+        this.element.val('');
+    },
+
+    toDefault: function(){
+        this.element.val(Utils.isValue(this.options.defaultValue) ? this.options.defaultValue : "");
     },
 
     disable: function(){
@@ -13310,8 +13512,7 @@ var Radio = {
         style: 1,
         caption: "",
         captionPosition: "right",
-        disabled: false,
-        clsElement: "",
+        clsRadio: "",
         clsCheck: "",
         clsCaption: "",
         onRadioCreate: Metro.noop
@@ -13358,11 +13559,11 @@ var Radio = {
         this.origin.className = element[0].className;
         element[0].className = '';
 
-        radio.addClass(o.clsElement);
+        radio.addClass(o.clsRadio);
         caption.addClass(o.clsCaption);
         check.addClass(o.clsCheck);
 
-        if (o.disabled === true && element.is(':disabled')) {
+        if (element.is(':disabled')) {
             this.disable();
         } else {
             this.enable();
@@ -13670,6 +13871,7 @@ var Resizable = {
         this.options = $.extend( {}, this.options, options );
         this.elem  = elem;
         this.element = $(elem);
+        this.resizer = null;
 
         this._setOptionsFromDOM();
         this._create();
@@ -13679,12 +13881,13 @@ var Resizable = {
         return this;
     },
     options: {
+        canResize: true,
         resizeElement: ".resize-element",
-        resizeMinWidth: 0,
-        resizeMinHeight: 0,
-        resizeMaxWidth: 0,
-        resizeMaxHeight: 0,
-        resizePreserveRatio: false,
+        minWidth: 0,
+        minHeight: 0,
+        maxWidth: 0,
+        maxHeight: 0,
+        preserveRatio: false,
         onResizeStart: Metro.noop,
         onResizeStop: Metro.noop,
         onResize: Metro.noop,
@@ -13692,7 +13895,7 @@ var Resizable = {
     },
 
     _setOptionsFromDOM: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
 
         $.each(element.data(), function(key, value){
             if (key in o) {
@@ -13706,53 +13909,70 @@ var Resizable = {
     },
 
     _create: function(){
-        var that = this, element = this.element, o = this.options;
+        this._createStructure();
+        this._createEvents();
+    },
 
-        if (o.resizeElement !== "" && $(o.resizeElement).length === 0) {
-            $("<span>").addClass("resize-element").appendTo(element);
+    _createStructure: function(){
+        var element = this.element, o = this.options;
+
+        if (Utils.isValue(o.resizeElement) && $(o.resizeElement).length > 0) {
+            this.resizer = $(o.resizeElement);
+        } else {
+            this.resizer = $("<span>").addClass("resize-element").appendTo(element);
         }
+    },
 
-        element.on(Metro.events.start, o.resizeElement, function(e){
+    _createEvents: function(){
+        var element = this.element, o = this.options;
 
-            if (element.data("canResize") === false) {
+        this.resizer.on(Metro.events.start + "-resize-element", function(e){
+
+            if (o.canResize === false) {
                 return ;
             }
 
-            var startXY = Utils.clientXY(e);
+            var startXY = Utils.pageXY(e);
             var startWidth = parseInt(element.outerWidth());
             var startHeight = parseInt(element.outerHeight());
             var size = {width: startWidth, height: startHeight};
 
-            console.log(element.offset());
-
             Utils.exec(o.onResizeStart, [element, size]);
 
-            $(document).on(Metro.events.move, function(e){
-                var moveXY = Utils.clientXY(e);
+            $(document).on(Metro.events.move + "-resize-element", function(e){
+                var moveXY = Utils.pageXY(e);
                 var size = {
                     width: startWidth + moveXY.x - startXY.x,
                     height: startHeight + moveXY.y - startXY.y
                 };
 
-                if (o.resizeMinWidth > 0 && size.width < o.resizeMinWidth) {return ;}
-                if (o.resizeMaxWidth > 0 && size.width > o.resizeMaxWidth) {return ;}
-                if (o.resizeMinHeight > 0 && size.height < o.resizeMinHeight) {return ;}
-                if (o.resizeMaxHeight > 0 && size.height > o.resizeMaxHeight) {return ;}
+                if (o.maxWidth > 0 && size.width > o.maxWidth) {return true;}
+                if (o.minWidth > 0 && size.width < o.minWidth) {return true;}
+
+                if (o.maxHeight > 0 && size.height > o.maxHeight) {return true;}
+                if (o.minHeight > 0 && size.height < o.minHeight) {return true;}
 
                 element.css(size);
+
                 Utils.exec(o.onResize, [element, size]);
             });
+
+            $(document).on(Metro.events.stop + "-resize-element", function(){
+                $(document).off(Metro.events.move + "-resize-element");
+                $(document).off(Metro.events.stop + "-resize-element");
+
+                var size = {
+                    width: parseInt(element.outerWidth()),
+                    height: parseInt(element.outerHeight())
+                };
+
+                Utils.exec(o.onResizeStop, [element, size]);
+            });
+
+            e.preventDefault();
+            e.stopPropagation();
         });
 
-        element.on(Metro.events.stop, o.resizeElement, function(){
-            $(document).off(Metro.events.move);
-
-            var size = {
-                width: parseInt(element.outerWidth()),
-                height: parseInt(element.outerHeight())
-            };
-            Utils.exec(o.onResizeStop, [element, size]);
-        });
     },
 
     off: function(){
@@ -13764,6 +13984,15 @@ var Resizable = {
     },
 
     changeAttribute: function(attributeName){
+        var that = this, element = this.element, o = this.options;
+
+        var canResize = function(){
+            o.canResize = JSON.parse(element.attr('data-can-resize')) === true;
+        };
+
+        switch (attributeName) {
+            case "data-can-resize": canResize(); break;
+        }
     }
 };
 
@@ -13984,173 +14213,6 @@ var Ripple = {
 
 Metro.plugin('ripple', Ripple);
 
-// Source: js/plugins/search.js
-var Search = {
-    init: function( options, elem ) {
-        this.options = $.extend( {}, this.options, options );
-        this.elem  = elem;
-        this.element = $(elem);
-
-        this._setOptionsFromDOM();
-        this._create();
-
-        Utils.exec(this.options.onInputCreate, [this.element]);
-
-        return this;
-    },
-    options: {
-        clsElement: "",
-        clsInput: "",
-        clsPrepend: "",
-        clsClearButton: "",
-        clsSearchButton: "",
-        size: "default",
-        prepend: "",
-        copyInlineStyles: true,
-        clearButton: true,
-        searchButton: true,
-        searchButtonClick: "submit",
-        clearButtonIcon: "<span class='default-icon-cross'></span>",
-        searchButtonIcon: "<span class='default-icon-search'></span>",
-        customButtons: [],
-        disabled: false,
-        onSearchButtonClick: Metro.noop,
-        onInputCreate: Metro.noop
-    },
-
-    _setOptionsFromDOM: function(){
-        var that = this, element = this.element, o = this.options;
-
-        $.each(element.data(), function(key, value){
-            if (key in o) {
-                try {
-                    o[key] = JSON.parse(value);
-                } catch (e) {
-                    o[key] = value;
-                }
-            }
-        });
-    },
-
-    _create: function(){
-        var that = this, element = this.element, o = this.options;
-        var prev = element.prev();
-        var parent = element.parent();
-        var container = $("<div>").addClass("input " + element[0].className);
-        var buttons = $("<div>").addClass("button-group");
-        var clearButton, searchButton;
-
-        if (element.attr("type") === undefined) {
-            element.attr("type", "text");
-        }
-
-        if (prev.length === 0) {
-            parent.prepend(container);
-        } else {
-            container.insertAfter(prev);
-        }
-
-        element.appendTo(container);
-        buttons.appendTo(container);
-
-        if (o.clearButton !== false) {
-            clearButton = $("<button>").addClass("button input-clear-button").addClass(o.clsClearButton).attr("tabindex", -1).attr("type", "button").html(o.clearButtonIcon);
-            clearButton.on(Metro.events.click, function(){
-                element.val("").trigger('change').trigger('keyup').focus();
-            });
-            clearButton.appendTo(buttons);
-        }
-        if (o.searchButton !== false) {
-            searchButton = $("<button>").addClass("button input-search-button").addClass(o.clsSearchButton).attr("tabindex", -1).attr("type", o.searchButtonClick === 'submit' ? "submit" : "button").html(o.searchButtonIcon);
-            searchButton.on(Metro.events.click, function(){
-                if (o.searchButtonClick === 'submit') {
-                    Utils.exec(o.onSearchButtonClick, [element.val(), $(this)], element[0]);
-                } else {
-                    this.form.submit();
-                }
-            });
-            searchButton.appendTo(buttons);
-        }
-
-        if (o.prepend !== "") {
-            var prepend = Utils.isTag(o.prepend) ? $(o.prepend) : $("<span>"+o.prepend+"</span>");
-            prepend.addClass("prepend").addClass(o.clsPrepend).appendTo(container);
-        }
-
-        if (typeof o.customButtons === "string") {
-            o.customButtons = Utils.isObject(o.customButtons);
-        }
-
-        if (typeof o.customButtons === "object" && Utils.objectLength(o.customButtons) > 0) {
-            $.each(o.customButtons, function(){
-                var item = this;
-                var customButton = $("<button>").addClass("button input-custom-button").addClass(item.cls).attr("tabindex", -1).attr("type", "button").html(item.html);
-                customButton.on(Metro.events.click, function(){
-                    Utils.exec(item.onclick, [element.val(), customButton], element[0]);
-                });
-                customButton.appendTo(buttons);
-            });
-        }
-
-        if (element.attr('dir') === 'rtl' ) {
-            container.addClass("rtl").attr("dir", "rtl");
-        }
-
-        element[0].className = '';
-        if (o.copyInlineStyles === true) {
-            for (var i = 0, l = element[0].style.length; i < l; i++) {
-                container.css(element[0].style[i], element.css(element[0].style[i]));
-            }
-        }
-
-        container.addClass(o.clsElement);
-        element.addClass(o.clsInput);
-
-        if (o.size !== "default") {
-            container.css({
-                width: o.size
-            });
-        }
-
-        element.on(Metro.events.blur, function(){container.removeClass("focused");});
-        element.on(Metro.events.focus, function(){container.addClass("focused");});
-
-        if (o.disabled === true || element.is(":disabled")) {
-            this.disable();
-        } else {
-            this.enable();
-        }
-    },
-
-    disable: function(){
-        //this.element.attr("disabled", true);
-        this.element.data("disabled", true);
-        this.element.parent().addClass("disabled");
-    },
-
-    enable: function(){
-        //this.element.attr("disabled", false);
-        this.element.data("disabled", false);
-        this.element.parent().removeClass("disabled");
-    },
-
-    toggleState: function(){
-        if (this.element.data("disabled") === false) {
-            this.disable();
-        } else {
-            this.enable();
-        }
-    },
-
-    changeAttribute: function(attributeName){
-        switch (attributeName) {
-            case 'disabled': this.toggleState(); break;
-        }
-    }
-};
-
-Metro.plugin('search', Search);
-
 // Source: js/plugins/select.js
 var Select = {
     init: function( options, elem ) {
@@ -14168,7 +14230,14 @@ var Select = {
     },
     options: {
         duration: 100,
-        clsElement: "",
+        prepend: "",
+        append: "",
+        placeholder: "",
+        filterPlaceholder: "",
+        filter: true,
+        copyInlineStyles: true,
+        dropHeight: 200,
+
         clsSelect: "",
         clsPrepend: "",
         clsAppend: "",
@@ -14177,18 +14246,13 @@ var Select = {
         clsDropList: "",
         clsSelectedItem: "",
         clsSelectedItemRemover: "",
-        prepend: "",
-        append: "",
-        placeholder: "",
-        filterPlaceholder: "",
-        filter: true,
-        copyInlineStyles: true,
-        dropHeight: 200,
-        disabled: false,
+
         onChange: Metro.noop,
-        onSelectCreate: Metro.noop,
         onUp: Metro.noop,
-        onDrop: Metro.noop
+        onDrop: Metro.noop,
+        onItemSelect: Metro.noop,
+        onItemDeselect: Metro.noop,
+        onSelectCreate: Metro.noop
     },
 
     _setOptionsFromDOM: function(){
@@ -14216,18 +14280,18 @@ var Select = {
         var element = this.element, o = this.options;
         var multiple = element[0].multiple;
         var input = element.siblings(".select-input");
-        var html = Utils.isValue(option.data('template'))?option.data('template').replace("$1", item.text):item.text;
-        var selected_item;
+        var html = Utils.isValue(option.attr('data-template')) ? option.attr('data-template').replace("$1", item.text):item.text;
+        var tag;
 
-        l = $("<li>").addClass(o.clsOption).data("option", item).data("text", item.text).data('value', Utils.isValue(item.value) ? item.value : "").appendTo(parent);
+        l = $("<li>").addClass(o.clsOption).data("option", item).attr("data-text", item.text).attr('data-value', Utils.isValue(item.value) ? item.value : "").appendTo(parent);
         a = $("<a>").html(html).appendTo(l).addClass(item.className);
 
-        if (item.getAttribute("selected") !== null) {
+        if (option.is(":selected")) {
             if (multiple) {
                 l.addClass("d-none");
-                selected_item = $("<div>").addClass("selected-item").addClass(o.clsSelectedItem).html("<span class='title'>"+html+"</span>").appendTo(input);
-                selected_item.data("option", l);
-                $("<span>").addClass("remover").addClass(o.clsSelectedItemRemover).html("&times;").appendTo(selected_item);
+                tag = $("<div>").addClass("selected-item").addClass(o.clsSelectedItem).html("<span class='title'>"+html+"</span>").appendTo(input);
+                tag.data("option", l);
+                $("<span>").addClass("remover").addClass(o.clsSelectedItemRemover).html("&times;").appendTo(tag);
             } else {
                 element.val(item.value);
                 input.html(html);
@@ -14251,12 +14315,25 @@ var Select = {
         })
     },
 
+    _createOptions: function(){
+        var that = this, element = this.element, select = element.parent();
+        var list = select.find("ul").html("");
+
+        $.each(element.children(), function(){
+            if (this.tagName === "OPTION") {
+                that._addOption(this, list);
+            } else if (this.tagName === "OPTGROUP") {
+                that._addOptionGroup(this, list);
+            }
+        });
+    },
+
     _createSelect: function(){
         var that = this, element = this.element, o = this.options;
 
         var prev = element.prev();
         var parent = element.parent();
-        var container = $("<div>").addClass("select " + element[0].className).addClass(o.clsElement);
+        var container = $("<div>").addClass("select " + element[0].className).addClass(o.clsSelect);
         var multiple = element[0].multiple;
         var select_id = Utils.elementId("select");
         var buttons = $("<div>").addClass("button-group");
@@ -14275,7 +14352,6 @@ var Select = {
         }
 
         element.appendTo(container);
-        element.addClass(o.clsSelect);
         buttons.appendTo(container);
 
         input = $("<div>").addClass("select-input").attr("name", "__" + select_id + "__");
@@ -14296,13 +14372,7 @@ var Select = {
 
         drop_container.append(list);
 
-        $.each(element.children(), function(){
-            if (this.tagName === "OPTION") {
-                that._addOption(this, list);
-            } else if (this.tagName === "OPTGROUP") {
-                that._addOptionGroup(this, list);
-            }
-        });
+        this._createOptions();
 
         drop_container.dropdown({
             duration: o.duration,
@@ -14341,12 +14411,12 @@ var Select = {
         this.list = list;
 
         if (o.prepend !== "") {
-            var prepend = Utils.isTag(o.prepend) ? $(o.prepend) : $("<span>"+o.prepend+"</span>");
+            var prepend = $("<div>").html(o.prepend);
             prepend.addClass("prepend").addClass(o.clsPrepend).appendTo(container);
         }
 
         if (o.append !== "") {
-            var append = Utils.isTag(o.append) ? $(o.append) : $("<span>"+o.append+"</span>");
+            var append = $("<div>").html(o.append);
             append.addClass("append").addClass(o.clsAppend).appendTo(container);
         }
 
@@ -14360,7 +14430,7 @@ var Select = {
             container.addClass("rtl").attr("dir", "rtl");
         }
 
-        if (o.disabled === true || element.is(':disabled')) {
+        if (element.is(':disabled')) {
             this.disable();
         } else {
             this.enable();
@@ -14396,39 +14466,46 @@ var Select = {
             var txt = leaf.data('text');
             var html = leaf.children('a').html();
             var selected_item;
+            var option = leaf.data("option");
+            var options = element.find("option");
 
             if (element[0].multiple) {
                 leaf.addClass("d-none");
                 selected_item = $("<div>").addClass("selected-item").addClass(o.clsSelectedItem).html("<span class='title'>"+html+"</span>").appendTo(input);
                 selected_item.data("option", leaf);
                 $("<span>").addClass("remover").addClass(o.clsSelectedItemRemover).html("&times;").appendTo(selected_item);
-                $.each(element.find("option"), function(){
-                    if (this === leaf.data("option")) {
-                        this.selected = true;
-                    }
-                });
             } else {
                 list.find("li.active").removeClass("active");
                 leaf.addClass("active");
                 input.html(html);
-                element.val(val);
-                element.trigger("change");
                 drop_container.data("dropdown").close();
             }
 
-            Utils.exec(o.onChange, [val], element[0]);
+            $.each(options, function(){
+                if (this === option) {
+                    this.selected = true;
+                }
+            });
+
+            element.trigger("change");
+
+            Utils.exec(o.onItemSelect, [val, option, leaf], element[0]);
+            Utils.exec(o.onChange, [that.getSelected()], element[0]);
         });
 
         input.on("click", ".selected-item .remover", function(e){
             var item = $(this).closest(".selected-item");
             var leaf = item.data("option");
+            var option = leaf.data('option');
             leaf.removeClass("d-none");
             $.each(element.find("option"), function(){
-                if (this === leaf.data("option")) {
+                if (this === option) {
                     this.selected = false;
                 }
             });
             item.remove();
+            Utils.exec(o.onItemDeselect, [option], element[0]);
+            Utils.exec(o.onChange, [that.getSelected()], element[0]);
             e.preventDefault();
             e.stopPropagation();
         });
@@ -14454,11 +14531,6 @@ var Select = {
         });
     },
 
-    reset: function(){
-        var that = this, element = this.element, o = this.options;
-        //TODO
-    },
-
     disable: function(){
         this.element.data("disabled", true);
         this.element.closest(".select").addClass("disabled");
@@ -14469,49 +14541,106 @@ var Select = {
         this.element.closest(".select").removeClass("disabled");
     },
 
-    val: function(v){
-        var element = this.element, o = this.options;
-        var input = element.siblings("input");
-        var options = element.find("option");
-        var items = this.list.find("li");
+    toggleState: function(){
+        if (this.element.data("disabled") === false) {
+            this.disable();
+        } else {
+            this.enable();
+        }
+    },
 
-        if (v === undefined) {
-            return element.val();
+    reset: function(to_default){
+        var element = this.element, o = this.options;
+        var options = element.find("option");
+        var select = element.closest('.select');
+
+        $.each(options, function(){
+            console.log(this.defaultSelected);
+            this.selected = !Utils.isNull(to_default) ? this.defaultSelected : false;
+        });
+
+        this.list.find("li").remove();
+        select.find(".select-input").html('');
+
+        this._createOptions();
+
+        element.trigger('change');
+        Utils.exec(o.onChange, [this.getSelected()], element[0]);
+    },
+
+    getSelected: function(){
+        var element = this.element;
+        var result = [];
+
+        element.find("option:selected").each(function(){
+            result.push(this.value);
+        });
+
+        return result;
+    },
+
+    val: function(val){
+        var that = this, element = this.element, o = this.options;
+        var input = element.siblings(".select-input");
+        var options = element.find("option");
+        var list_items = this.list.find("li");
+        var result = [];
+        var multiple = element.attr("multiple") !== undefined;
+        var option;
+        var i, html, list_item, option_value, tag;
+
+        if (Utils.isNull(val)) {
+            $.each(options, function(){
+                if (this.selected) result.push(this.value);
+            });
+            return result;
         }
 
-        options.removeAttr("selected");
-        $.each(options, function(){
-            var op = this;
+        $.each(options, function(){this.selected = false;});
+        list_items.removeClass("active");
+        input.html('');
 
-            if (""+op.value === ""+v) {
-                op.setAttribute("selected", "selected");
-                input.val(op.text);
-                element.trigger("change");
+        if (Array.isArray(val) === false) {
+            val  = [val];
+        }
 
-                items.removeClass("active");
-                $.each(items, function(){
-                    var item = $(this);
+        $.each(val, function(){
+            for (i = 0; i < options.length; i++) {
+                option = options[i];
+                html = Utils.isValue(option.getAttribute('data-template')) ? option.getAttribute('data-template').replace("$1", option.text) : option.text;
+                if (""+option.value === ""+this) {
+                    option.selected = true;
+                    break;
+                }
+            }
 
-                    if (item.hasClass("group-title")) return ;
-
-                    if (""+item.data("value") === ""+v) {
-                        item.addClass("active");
+            for(i = 0; i < list_items.length; i++) {
+                list_item = $(list_items[i]);
+                option_value = list_item.attr("data-value");
+                if (""+option_value === ""+this) {
+                    if (multiple) {
+                        list_item.addClass("d-none");
+                        tag = $("<div>").addClass("selected-item").addClass(o.clsSelectedItem).html("<span class='title'>"+html+"</span>").appendTo(input);
+                        tag.data("option", list_item);
+                        $("<span>").addClass("remover").addClass(o.clsSelectedItemRemover).html("&times;").appendTo(tag);
+                    } else {
+                        list_item.addClass("active");
+                        input.html(html);
                     }
-                });
-
-                Utils.exec(o.onChange, [v], element[0]);
+                    break;
+                }
             }
         });
+
+        element.trigger('change');
+        Utils.exec(o.onChange, [this.getSelected()], element[0]);
     },
 
     data: function(op){
-        var that = this, element = this.element;
-        var select = element.parent();
-        var list = select.find("ul");
+        var element = this.element;
         var option_group;
 
         element.html("");
-        list.html("");
 
         if (typeof op === 'string') {
             element.html(op);
@@ -14528,17 +14657,13 @@ var Select = {
             });
         }
 
-        $.each(element.children(), function(){
-            if (this.tagName === "OPTION") {
-                that._addOption(this, list);
-            } else if (this.tagName === "OPTGROUP") {
-                that._addOptionGroup(this, list);
-            }
-        });
+        this._createOptions();
     },
 
     changeAttribute: function(attributeName){
-
+        switch (attributeName) {
+            case 'disabled': this.toggleState(); break;
+        }
     },
 
     destroy: function(){
@@ -15533,12 +15658,20 @@ var Spinner = {
         maxValue: null,
         fixed: 0,
         repeatThreshold: 500,
+        hideCursor: false,
         clsSpinner: "",
-        clsSpinnerValue: "",
+        clsSpinnerInput: "",
         clsSpinnerButton: "",
         clsSpinnerButtonPlus: "",
         clsSpinnerButtonMinus: "",
+        onBeforeChange: Metro.noop_true,
         onChange: Metro.noop,
+        onPlusClick: Metro.noop,
+        onMinusClick: Metro.noop,
+        onArrowUp: Metro.noop,
+        onArrowDown: Metro.noop,
+        onButtonClick: Metro.noop,
+        onArrowClick: Metro.noop,
         onSpinnerCreate: Metro.noop
     },
 
@@ -15568,23 +15701,27 @@ var Spinner = {
     _createStructure: function(){
         var element = this.element, o = this.options;
         var spinner = $("<div>").addClass("spinner").addClass("buttons-"+o.buttonsPosition).addClass(element[0].className).addClass(o.clsSpinner);
-        var wrapper = $("<div>").addClass("input-wrapper").addClass(o.clsSpinnerValue);
         var button_plus = $("<button>").attr("type", "button").addClass("button spinner-button spinner-button-plus").addClass(o.clsSpinnerButton + " " + o.clsSpinnerButtonPlus).html(o.plusIcon);
         var button_minus = $("<button>").attr("type", "button").addClass("button spinner-button spinner-button-minus").addClass(o.clsSpinnerButton + " " + o.clsSpinnerButtonMinus).html(o.minusIcon);
         var init_value = element.val().trim();
 
+        if (!Utils.isValue(init_value)) {
+            element.val(0);
+        }
+
         element[0].className = '';
 
         spinner.insertBefore(element);
-        element.appendTo(spinner);
+        element.appendTo(spinner).addClass(o.clsSpinnerInput);
 
         element.addClass("original-input");
 
-        wrapper.appendTo(spinner);
         button_plus.appendTo(spinner);
         button_minus.appendTo(spinner);
 
-        wrapper.text(Number(Utils.isValue(init_value) ? init_value : 0));
+        if (o.hideCursor === true) {
+            spinner.addClass("hide-cursor");
+        }
 
         if (o.disabled === true || element.is(":disabled")) {
             this.disable();
@@ -15597,9 +15734,8 @@ var Spinner = {
         var that = this, element = this.element, o = this.options;
         var spinner = element.closest(".spinner");
 
-        var click = function(context, threshold){
-            var button = $(context);
-            var plus = button.hasClass("spinner-button-plus");
+        var spinnerButtonClick = function(plus, threshold){
+            var curr = element.val();
 
             var val = Number(element.val());
             var step = Number(o.step);
@@ -15612,27 +15748,45 @@ var Spinner = {
 
             that._setValue(val.toFixed(o.fixed), true);
 
+            Utils.exec(plus ? o.onPlusClick : o.onMinusClick, [curr, val, element.val()], element[0]);
+            Utils.exec(plus ? o.onArrowUp : o.onArrowDown, [curr, val, element.val()], element[0]);
+            Utils.exec(o.onButtonClick, [curr, val, element.val(), plus ? 'plus' : 'minus'], element[0]);
+            Utils.exec(o.onArrowClick, [curr, val, element.val(), plus ? 'plus' : 'minus'], element[0]);
+
             setTimeout(function(){
                 if (that.repeat_timer) {
-                    click(context, 100);
+                    spinnerButtonClick(plus, 100);
                 }
             }, threshold);
         };
 
         spinner.on(Metro.events.start, ".spinner-button", function(){
             that.repeat_timer = true;
-            click(this, o.repeatThreshold);
+            spinnerButtonClick($(this).hasClass("spinner-button-plus"), o.repeatThreshold);
         });
 
         spinner.on(Metro.events.stop, ".spinner-button", function(){
             that.repeat_timer = false;
         });
+
+        element.on(Metro.events.keydown, function(e){
+            if (e.keyCode === Metro.keyCode.UP_ARROW || e.keyCode === Metro.keyCode.DOWN_ARROW) {
+                that.repeat_timer = true;
+                spinnerButtonClick(e.keyCode === Metro.keyCode.UP_ARROW, o.repeatThreshold);
+            }
+        });
+
+        spinner.on(Metro.events.keyup, function(){
+            that.repeat_timer = false;
+        });
     },
 
-    _setValue: function(val, change){
+    _setValue: function(val, trigger_change){
         var element = this.element, o = this.options;
-        var spinner = element.closest(".spinner");
-        var wrapper = spinner.find(".input-wrapper");
+
+        if (Utils.exec(o.onBeforeChange, [val], element[0]) !== true) {
+            return ;
+        }
 
         if (Utils.isValue(o.maxValue) && val > Number(o.maxValue)) {
             val =  Number(o.maxValue);
@@ -15643,11 +15797,10 @@ var Spinner = {
         }
 
         element.val(val);
-        wrapper.text(val);
 
         Utils.exec(o.onChange, [val], element[0]);
 
-        if (change === true) {
+        if (trigger_change === true) {
             element.trigger("change");
         }
     },
@@ -16486,8 +16639,7 @@ var Switch = {
     options: {
         caption: "",
         captionPosition: "right",
-        disabled: false,
-        clsElement: "",
+        clsSwitch: "",
         clsCheck: "",
         clsCaption: "",
         onSwitchCreate: Metro.noop
@@ -16533,11 +16685,11 @@ var Switch = {
 
         element[0].className = '';
 
-        container.addClass(o.clsElement);
+        container.addClass(o.clsSwitch);
         caption.addClass(o.clsCaption);
         check.addClass(o.clsCheck);
 
-        if (o.disabled === true && element.is(':disabled')) {
+        if (element.is(':disabled')) {
             this.disable();
         } else {
             this.enable();
@@ -18710,7 +18862,7 @@ var TagInput = {
         var element = this.element, o = this.options;
         var val = tag.data("value");
 
-        if (!Utils.exec(o.onBeforeTagAdd, [tag, val, this.values, tag], element[0])) {
+        if (!Utils.exec(o.onBeforeTagRemove, [tag, val, this.values], element[0])) {
             return ;
         }
 
@@ -18735,8 +18887,8 @@ var TagInput = {
 
         this.values = [];
 
-        if (Utils.isValue(values)) {
-            $.each(Utils.strToArray(values, o.tagSeparator), function(){
+        if (Utils.isValue(v)) {
+            $.each(Utils.strToArray(v, o.tagSeparator), function(){
                 that._addTag(this);
             })
         }
@@ -18753,7 +18905,20 @@ var TagInput = {
     },
 
     changeAttribute: function(attributeName){
+        var that = this, element = this.element, o = this.options;
 
+        var changeValue = function(){
+            var val = element.attr("value").trim();
+            that.clear();
+            if (!Utils.isValue(val)) {
+                return ;
+            }
+            that.val(Utils.strToArray(val, ","));
+        };
+
+        switch (attributeName) {
+            case "value": changeValue(); break;
+        }
     },
 
     destroy: function(){
@@ -18789,12 +18954,20 @@ var Textarea = {
         return this;
     },
     options: {
+        charsCounter: null,
+        charsCounterTemplate: "$1",
+        defaultValue: "",
         prepend: "",
+        append: "",
         copyInlineStyles: true,
         clearButton: true,
         clearButtonIcon: "<span class='default-icon-cross'></span>",
-        autoSize: false,
-        disabled: false,
+        autoSize: true,
+        clsPrepend: "",
+        clsAppend: "",
+        clsComponent: "",
+        clsTextarea: "",
+        onChange: Metro.noop,
         onTextareaCreate: Metro.noop
     },
 
@@ -18813,6 +18986,11 @@ var Textarea = {
     },
 
     _create: function(){
+        this._createStructure();
+        this._createEvents();
+    },
+
+    _createStructure: function(){
         var that = this, element = this.element, o = this.options;
         var prev = element.prev();
         var parent = element.parent();
@@ -18826,21 +19004,12 @@ var Textarea = {
             container.insertAfter(prev);
         }
 
-
         if (o.clearButton !== false) {
             clearButton = $("<button>").addClass("button input-clear-button").attr("tabindex", -1).attr("type", "button").html(o.clearButtonIcon);
-            clearButton.on(Metro.events.click, function(){
-                element.val("").trigger('change').trigger('keyup').focus();
-            });
             clearButton.appendTo(container);
         }
 
         element.appendTo(container);
-
-        var resize = function(){
-            element[0].style.cssText = 'height:auto;';
-            element[0].style.cssText = 'height:' + element[0].scrollHeight + 'px';
-        };
 
         if (o.autoSize) {
 
@@ -18848,16 +19017,8 @@ var Textarea = {
 
             timer = setTimeout(function(){
                 timer = null;
-                resize();
+                that.resize();
             }, 0);
-
-            element.on(Metro.events.keyup, resize);
-            element.on(Metro.events.keydown, resize);
-            element.on(Metro.events.change, resize);
-            element.on(Metro.events.focus, resize);
-            element.on(Metro.events.cut, resize);
-            element.on(Metro.events.paste, resize);
-            element.on(Metro.events.drop, resize);
         }
 
         if (element.attr('dir') === 'rtl' ) {
@@ -18865,8 +19026,16 @@ var Textarea = {
         }
 
         if (o.prepend !== "") {
-            var prepend = Utils.isTag(o.prepend) ? $(o.prepend) : $("<span>"+o.prepend+"</span>");
+            var prepend = $("<div>").html(o.prepend);
             prepend.addClass("prepend").addClass(o.clsPrepend).appendTo(container);
+        }
+
+        if (o.append !== "") {
+            var append = $("<div>").html(o.append);
+            append.addClass("append").addClass(o.clsAppend).appendTo(container);
+            clearButton.css({
+                right: append.outerWidth() + 4
+            });
         }
 
         element[0].className = '';
@@ -18876,14 +19045,72 @@ var Textarea = {
             }
         }
 
-        element.on(Metro.events.blur, function(){container.removeClass("focused");});
-        element.on(Metro.events.focus, function(){container.addClass("focused");});
+        if (Utils.isValue(o.defaultValue) && element.val().trim() === "") {
+            element.val(o.defaultValue);
+        }
 
-        if (o.disabled === true || element.is(':disabled')) {
+        container.addClass(o.clsComponent);
+        element.addClass(o.clsTextarea);
+
+        if (element.is(':disabled')) {
             this.disable();
         } else {
             this.enable();
         }
+    },
+
+    _createEvents: function(){
+        var that = this, element = this.element, o = this.options;
+        var textarea = element.closest(".textarea");
+        var chars_counter = $(o.charsCounter);
+
+        textarea.on(Metro.events.click, ".input-clear-button", function(){
+            element.val(Utils.isValue(o.defaultValue) ? o.defaultValue : "").trigger('change').trigger('keyup').focus();
+        });
+
+        if (o.autoSize) {
+            element.on(Metro.events.keyup, $.proxy(this.resize, that));
+            element.on(Metro.events.keydown, $.proxy(this.resize, that));
+            element.on(Metro.events.change, $.proxy(this.resize, that));
+            element.on(Metro.events.focus, $.proxy(this.resize, that));
+            element.on(Metro.events.cut, $.proxy(this.resize, that));
+            element.on(Metro.events.paste, $.proxy(this.resize, that));
+            element.on(Metro.events.drop, $.proxy(this.resize, that));
+        }
+
+        element.on(Metro.events.blur, function(){textarea.removeClass("focused");});
+        element.on(Metro.events.focus, function(){textarea.addClass("focused");});
+
+        element.on(Metro.events.keyup, function(){
+            if (Utils.isValue(o.charsCounter) && chars_counter.length > 0) {
+                if (chars_counter[0].tagName === "INPUT") {
+                    chars_counter.val(that.length());
+                } else {
+                    chars_counter.html(o.charsCounterTemplate.replace("$1", that.length()));
+                }
+            }
+            Utils.exec(o.onChange, [element.val(), that.length()], element[0]);
+        })
+    },
+
+    resize: function(){
+        var element = this.element;
+
+        element[0].style.cssText = 'height:auto;';
+        element[0].style.cssText = 'height:' + element[0].scrollHeight + 'px';
+    },
+
+    clear: function(){
+        this.element.val("").trigger('change').trigger('keyup').focus();
+    },
+
+    toDefault: function(){
+        this.element.val(Utils.isValue(this.options.defaultValue) ? this.options.defaultValue : "").trigger('change').trigger('keyup').focus();
+    },
+
+    length: function(){
+        var characters = this.elem.value.split('');
+        return characters.length;
     },
 
     disable: function(){
