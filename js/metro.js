@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.25 build 703 (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.26 build 704 (https://metroui.org.ua)
  * Copyright 2018 Sergey Pimenov
  * Licensed under MIT
  */
@@ -92,8 +92,8 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.25",
-    versionFull: "4.2.25.703 ",
+    version: "4.2.26",
+    versionFull: "4.2.26.704 ",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -3615,8 +3615,8 @@ var d = new Date().getTime();
     getCursorPosition: function(el, e){
         var a = Utils.rect(el);
         return {
-            x: e.pageX - a.left - window.pageXOffset,
-            y: e.pageY - a.top - window.pageYOffset
+            x: Utils.pageXY(e).x - a.left - window.pageXOffset,
+            y: Utils.pageXY(e).y - a.top - window.pageYOffset
         };
     },
 
@@ -3982,7 +3982,9 @@ var d = new Date().getTime();
             var result;
 
             switch (type) {
+                case "int":
                 case "integer": result = parseInt(s); break;
+                case "number":
                 case "float": result = parseFloat(s); break;
                 case "date": result = !Utils.isValue(format) ? new Date(s) : s.toDate(format); break;
                 default: result = s.trim();
@@ -4154,6 +4156,37 @@ var d = new Date().getTime();
 
     isLocalhost: function(){
         return (location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname === "")
+    },
+
+    iframeBubbleMouseMove: function(iframe){
+        if (Utils.isJQueryObject(iframe)) {
+            iframe = iframe[0];
+        }
+        var existingOnMouseMove = iframe.contentWindow.onmousemove;
+        iframe.contentWindow.onmousemove = function(e){
+            if(existingOnMouseMove) existingOnMouseMove(e);
+            var evt = document.createEvent("MouseEvents");
+            var boundingClientRect = iframe.getBoundingClientRect();
+            evt.initMouseEvent(
+                "mousemove",
+                true,
+                false,
+                window,
+                e.detail,
+                e.screenX,
+                e.screenY,
+                e.clientX + boundingClientRect.left,
+                e.clientY + boundingClientRect.top,
+                e.ctrlKey,
+                e.altKey,
+                e.shiftKey,
+                e.metaKey,
+                e.button,
+                null
+            );
+
+            iframe.dispatchEvent(evt);
+        };
     }
 };
 
@@ -10700,10 +10733,9 @@ var ImageCompare = {
         var overlay = element.find(".image-container-overlay");
         var slider = element.find(".image-slider");
 
-        element.on(Metro.events.start, ".image-slider", function(e){
+        slider.on(Metro.events.start, function(e){
             var w = element.width();
-            e.preventDefault();
-            $(window).on(Metro.events.move + "-" + element.attr("id"), function(e){
+            $(document).on(Metro.events.move + "-" + element.attr("id"), function(e){
                 var x = Utils.getCursorPositionX(element, e), left_pos;
                 if (x < 0) x = 0;
                 if (x > w) x = w;
@@ -10716,9 +10748,9 @@ var ImageCompare = {
                 });
                 Utils.exec(o.onSliderMove, [x, left_pos, slider[0]], element[0]);
             });
-            $(window).on(Metro.events.stop + "-" + element.attr("id"), function(){
-                $(window).off(Metro.events.move + "-" + element.attr("id"));
-                $(window).off(Metro.events.stop + "-" + element.attr("id"));
+            $(document).on(Metro.events.stop + "-" + element.attr("id"), function(){
+                $(document).off(Metro.events.move + "-" + element.attr("id"));
+                $(document).off(Metro.events.stop + "-" + element.attr("id"));
             })
         });
 
@@ -10923,8 +10955,6 @@ var ImageMagnifier = {
         if (o.magnifierMode !== "glass") {
             cx = zoomElement[0].offsetWidth / glass_size / 2;
             cy = zoomElement[0].offsetHeight / glass_size / 2;
-
-            console.log(cx, cy);
 
             zoomElement.css({
                 backgroundSize: (image.width * cx) + "px " + (image.height * cy) + "px"
@@ -14348,9 +14378,15 @@ var Popover = {
 
     createPopover: function(){
         var that = this, elem = this.elem, element = this.element, o = this.options;
-        var popover = $("<div>").addClass("popover neb").addClass(o.clsPopover).html(o.popoverText);
+        var popover;
         var neb_pos;
         var id = Utils.elementId("popover");
+
+        if (this.popovered) {
+            return ;
+        }
+
+        popover = $("<div>").addClass("popover neb").addClass(o.clsPopover).html(o.popoverText);
 
         popover.attr("id", id);
 
@@ -16988,6 +17024,158 @@ var Spinner = {
 };
 
 Metro.plugin('spinner', Spinner);
+
+// Source: js/plugins/splitter.js
+var Splitter = {
+    init: function( options, elem ) {
+        this.options = $.extend( {}, this.options, options );
+        this.elem  = elem;
+        this.element = $(elem);
+
+        this._setOptionsFromDOM();
+        this._create();
+
+        return this;
+    },
+
+    options: {
+        splitMode: "horizontal", // horizontal or vertical
+        splitSizes: null,
+        gutterSize: 4,
+        minSizes: null,
+        children: "*",
+        gutterClick: "expand", // expand or collapse
+        onResizeStart: Metro.noop,
+        onResizeStop: Metro.noop,
+        onResizeSplit: Metro.noop,
+        onSplitterCreate: Metro.noop
+    },
+
+    _setOptionsFromDOM: function(){
+        var that = this, element = this.element, o = this.options;
+
+        $.each(element.data(), function(key, value){
+            if (key in o) {
+                try {
+                    o[key] = JSON.parse(value);
+                } catch (e) {
+                    o[key] = value;
+                }
+            }
+        });
+    },
+
+    _create: function(){
+        var that = this, element = this.element, o = this.options;
+
+        this._createStructure();
+        this._createEvents();
+
+        Utils.exec(o.onCreate, [element]);
+    },
+
+    _createStructure: function(){
+        var that = this, element = this.element, o = this.options;
+        var children = element.children(o.children).addClass("split-block");
+        var i, children_sizes = [];
+        var gutters, resizeProp = o.splitMode === "horizontal" ? "width" : "height";
+
+        if (!Utils.isValue(element.attr("id"))) {
+            element.attr("id", Utils.elementId("splitter"));
+        }
+
+        element.addClass("splitter");
+        if (o.splitMode.toLowerCase() === "vertical") {
+            element.addClass("vertical");
+        }
+
+        for (i = 0; i < children.length - 1; i++) {
+            $("<div>").addClass("gutter").css(resizeProp, o.gutterSize).insertAfter($(children[i]));
+        }
+
+        gutters = element.children(".gutter");
+
+        if (!Utils.isValue(o.splitSizes)) {
+            children.css({
+                flexBasis: "calc("+(100/children.length)+"% - "+(gutters.length * o.gutterSize)+"px)"
+            })
+        } else {
+            children_sizes = Utils.strToArray(o.splitSizes);
+            for(i = 0; i < children_sizes.length; i++) {
+                $(children[i]).css({
+                    flexBasis: "calc("+children_sizes[i]+"% - "+(gutters.length * o.gutterSize)+"px)"
+                });
+            }
+        }
+
+        if (Utils.isValue(o.minSizes)) {
+            if (String(o.minSizes).contains(",")) {
+                children_sizes = Utils.strToArray(o.minSizes);
+                for (i = 0; i < children_sizes.length; i++) {
+                    $(children[i]).data("min-size", children_sizes[i]);
+                }
+            } else {
+                $.each(children, function(){
+                    this.style.setProperty('min-'+resizeProp, String(o.minSizes).contains("%") ? o.minSizes : String(o.minSizes).replace("px", "")+"px", 'important');
+                });
+            }
+        }
+    },
+
+    _createEvents: function(){
+        var that = this, element = this.element, o = this.options;
+        var gutters = element.children(".gutter");
+
+        gutters.on(Metro.events.start, function(e){
+            var w = o.splitMode === "horizontal" ? element.width() : element.height();
+            var gutter = $(this);
+            var prev_block = gutter.prev(".split-block");
+            var next_block = gutter.next(".split-block");
+            var prev_block_size = 100 * (o.splitMode === "horizontal" ? prev_block.outerWidth(true) : prev_block.outerHeight(true)) / w;
+            var next_block_size = 100 * (o.splitMode === "horizontal" ? next_block.outerWidth(true) : next_block.outerHeight(true)) / w;
+            var start_pos = Utils.getCursorPosition(element, e);
+
+            gutter.addClass("active");
+
+            Utils.exec(o.onResizeStart, [start_pos, gutter, prev_block, next_block], element);
+
+            $(window).on(Metro.events.move + "-" + element.attr("id"), function(e){
+                var pos = Utils.getCursorPosition(element, e);
+                var new_pos;
+
+                if (o.splitMode === "horizontal") {
+                    new_pos = (pos.x * 100 / w) - (start_pos.x * 100 / w);
+
+                } else {
+                    new_pos = (pos.y * 100 / w) - (start_pos.y * 100 / w);
+                }
+
+                prev_block.css("flex-basis", "calc(" + (prev_block_size + new_pos) + "% - "+(gutters.length * o.gutterSize)+"px)");
+                next_block.css("flex-basis", "calc(" + (next_block_size - new_pos) + "% - "+(gutters.length * o.gutterSize)+"px)");
+
+                Utils.exec(o.onResizeSplit, [pos, gutter, prev_block, next_block], element);
+            });
+
+            $(window).on(Metro.events.stop + "-" + element.attr("id"), function(e){
+
+                gutter.removeClass("active");
+
+                $(window).off(Metro.events.move + "-" + element.attr("id"));
+                $(window).off(Metro.events.stop + "-" + element.attr("id"));
+
+                Utils.exec(o.onResizeStop, [Utils.getCursorPosition(element, e), gutter, prev_block, next_block], element);
+            })
+        });
+    },
+
+    changeAttribute: function(attributeName){
+
+    },
+
+    destroy: function(){}
+};
+
+Metro.plugin('splitter', Splitter);
 
 // Source: js/plugins/stepper.js
 var Stepper = {
@@ -23726,7 +23914,7 @@ var Window = {
     },
 
     _setOptionsFromDOM: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
 
         $.each(element.data(), function(key, value){
             if (key in o) {
@@ -23742,7 +23930,6 @@ var Window = {
     _create: function(){
         var that = this, element = this.element, o = this.options;
         var win, overlay;
-        var prev = element.prev();
         var parent = o.dragArea === "parent" ? element.parent() : $(o.dragArea);
 
         if (o.modal === true) {
@@ -23757,12 +23944,6 @@ var Window = {
 
         win = this._window(o);
         win.addClass("no-visible");
-
-        // if (prev.length === 0) {
-        //     parent.prepend(win);
-        // } else {
-        //     win.insertAfter(prev);
-        // }
 
         parent.append(win);
 
@@ -23785,18 +23966,14 @@ var Window = {
     },
 
     _setPosition: function(){
-        var that = this, element = this.element, o = this.options;
-        var win = element.closest(".window");
+        var o = this.options;
+        var win = this.win;
         var parent = o.dragArea === "parent" ? win.parent() : $(o.dragArea);
         var top_center = parent.height() / 2 - win[0].offsetHeight / 2;
         var left_center = parent.width() / 2 - win[0].offsetWidth / 2;
         var top, left, right, bottom;
 
         if (o.place !== 'auto') {
-
-            console.log(o.place);
-            console.log(top_center);
-            console.log(left_center);
 
             switch (o.place.toLowerCase()) {
                 case "top-left": top = 0; left = 0; right = "auto"; bottom = "auto"; break;
@@ -23946,7 +24123,7 @@ var Window = {
     },
 
     _overlay: function(){
-        var that = this, win = this.win,  element = this.element, o = this.options;
+        var o = this.options;
 
         var overlay = $("<div>");
         overlay.addClass("overlay");
@@ -23963,7 +24140,7 @@ var Window = {
     },
 
     maximized: function(e){
-        var that = this, win = this.win,  element = this.element, o = this.options;
+        var win = this.win,  o = this.options;
         var target = $(e.currentTarget);
         win.toggleClass("maximized");
         if (target.hasClass("window-caption")) {
@@ -23973,13 +24150,13 @@ var Window = {
         }
     },
 
-    minimized: function(e){
-        var that = this, win = this.win,  element = this.element, o = this.options;
+    minimized: function(){
+        var win = this.win,  element = this.element, o = this.options;
         win.toggleClass("minimized");
         Utils.exec(o.onMinClick, [win], element[0]);
     },
 
-    close: function(e){
+    close: function(){
         var that = this, win = this.win,  element = this.element, o = this.options;
         var timer = null;
 
@@ -24040,7 +24217,7 @@ var Window = {
     },
 
     toggleButtons: function(a) {
-        var that = this, element = this.element, win = this.win, o = this.options;
+        var win = this.win;
         var btnClose = win.find(".btn-close");
         var btnMin = win.find(".btn-min");
         var btnMax = win.find(".btn-max");
@@ -24057,7 +24234,7 @@ var Window = {
     },
 
     changeSize: function(a){
-        var that = this, element = this.element, win = this.win, o = this.options;
+        var element = this.element, win = this.win;
         if (a === "data-width") {
             win.css("width", element.data("width"));
         }
@@ -24067,7 +24244,7 @@ var Window = {
     },
 
     changeClass: function(a){
-        var that = this, element = this.element, win = this.win, o = this.options;
+        var element = this.element, win = this.win, o = this.options;
         if (a === "data-cls-window") {
             win[0].className = "window " + (o.resizable ? " resizeable " : " ") + element.attr("data-cls-window");
         }
@@ -24080,7 +24257,7 @@ var Window = {
     },
 
     toggleShadow: function(){
-        var that = this, element = this.element, win = this.win, o = this.options;
+        var element = this.element, win = this.win;
         var flag = JSON.parse(element.attr("data-shadow"));
         if (flag === true) {
             win.addClass("win-shadow");
@@ -24090,7 +24267,7 @@ var Window = {
     },
 
     setContent: function(){
-        var that = this, element = this.element, win = this.win, o = this.options;
+        var element = this.element, win = this.win;
         var content = element.attr("data-content");
         var result;
 
@@ -24106,29 +24283,27 @@ var Window = {
     },
 
     setTitle: function(){
-        var that = this, element = this.element, win = this.win, o = this.options;
+        var element = this.element, win = this.win;
         var title = element.attr("data-title");
         win.find(".window-caption .title").html(title);
     },
 
     setIcon: function(){
-        var that = this, element = this.element, win = this.win, o = this.options;
+        var element = this.element, win = this.win;
         var icon = element.attr("data-icon");
         win.find(".window-caption .icon").html(icon);
     },
 
     getIcon: function(){
-        var that = this, element = this.element, win = this.win, o = this.options;
-        return win.find(".window-caption .icon").html();
+        return this.win.find(".window-caption .icon").html();
     },
 
     getTitle: function(){
-        var that = this, element = this.element, win = this.win, o = this.options;
-        return win.find(".window-caption .title").html();
+        return this.win.find(".window-caption .title").html();
     },
 
     toggleDraggable: function(){
-        var that = this, element = this.element, win = this.win, o = this.options;
+        var element = this.element, win = this.win;
         var flag = JSON.parse(element.attr("data-draggable"));
         var drag = win.data("draggable");
         if (flag === true) {
@@ -24139,7 +24314,7 @@ var Window = {
     },
 
     toggleResizable: function(){
-        var that = this, element = this.element, win = this.win, o = this.options;
+        var element = this.element, win = this.win;
         var flag = JSON.parse(element.attr("data-resizable"));
         var resize = win.data("resizable");
         if (flag === true) {
@@ -24152,7 +24327,7 @@ var Window = {
     },
 
     changeTopLeft: function(a){
-        var that = this, element = this.element, win = this.win, o = this.options;
+        var element = this.element, win = this.win;
         var pos;
         if (a === "data-top") {
             pos = parseInt(element.attr("data-top"));
@@ -24170,8 +24345,8 @@ var Window = {
         }
     },
 
-    changePlace: function (a) {
-        var that = this, element = this.element, win = this.win, o = this.options;
+    changePlace: function () {
+        var element = this.element, win = this.win;
         var place = element.attr("data-place");
         win.addClass(place);
     },
