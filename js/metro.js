@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.28 build 706 (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.29 build 708 (https://metroui.org.ua)
  * Copyright 2018 Sergey Pimenov
  * Licensed under MIT
  */
@@ -100,8 +100,8 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.28",
-    versionFull: "4.2.28.706 ",
+    version: "4.2.29",
+    versionFull: "4.2.29.708 ",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -4197,37 +4197,6 @@ var d = new Date().getTime();
         return (location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname === "")
     },
 
-    iframeBubbleMouseMove: function(iframe){
-        if (Utils.isJQueryObject(iframe)) {
-            iframe = iframe[0];
-        }
-        var existingOnMouseMove = iframe.contentWindow.onmousemove;
-        iframe.contentWindow.onmousemove = function(e){
-            if(existingOnMouseMove) existingOnMouseMove(e);
-            var evt = document.createEvent("MouseEvents");
-            var boundingClientRect = iframe.getBoundingClientRect();
-            evt.initMouseEvent(
-                "mousemove",
-                true,
-                false,
-                window,
-                e.detail,
-                e.screenX,
-                e.screenY,
-                e.clientX + boundingClientRect.left,
-                e.clientY + boundingClientRect.top,
-                e.ctrlKey,
-                e.altKey,
-                e.shiftKey,
-                e.metaKey,
-                e.button,
-                null
-            );
-
-            iframe.dispatchEvent(evt);
-        };
-    },
-
     formData: function(form){
         if (Utils.isNull(form)) {
             return ;
@@ -6665,7 +6634,7 @@ var CalendarPicker = {
     },
 
     toggleState: function(){
-        if (this.element.data("disabled") === false) {
+        if (this.elem.disabled) {
             this.disable();
         } else {
             this.enable();
@@ -7547,7 +7516,7 @@ var Checkbox = {
     },
 
     toggleState: function(){
-        if (this.element.data("disabled") === false) {
+        if (this.elem.disabled) {
             this.disable();
         } else {
             this.enable();
@@ -10353,7 +10322,7 @@ var File = {
     },
 
     toggleState: function(){
-        if (this.element.data("disabled") === false) {
+        if (this.elem.disabled) {
             this.disable();
         } else {
             this.enable();
@@ -11580,7 +11549,7 @@ var MaterialInput = {
     },
 
     toggleState: function(){
-        if (this.element.data("disabled") === false) {
+        if (this.elem.disabled) {
             this.disable();
         } else {
             this.enable();
@@ -11979,7 +11948,7 @@ var Input = {
     },
 
     toggleState: function(){
-        if (this.element.data("disabled") === false) {
+        if (this.elem.disabled) {
             this.disable();
         } else {
             this.enable();
@@ -12357,7 +12326,7 @@ var Keypad = {
     },
 
     toggleState: function(){
-        if (this.element.data("disabled") === false) {
+        if (this.elem.disabled) {
             this.disable();
         } else {
             this.enable();
@@ -13019,11 +12988,12 @@ var List = {
 
     deleteItem: function(value){
         var i, deleteIndexes = [], item;
+        var is_func = Utils.isFunc(value);
 
         for (i = 0; i < this.items.length; i++) {
             item = this.items[i];
 
-            if (Utils.isFunc(value)) {
+            if (is_func) {
                 if (Utils.exec(value, [item])) {
                     deleteIndexes.push(i);
                 }
@@ -14173,6 +14143,10 @@ var Notify = {
         var notify, that = this, o = this.options;
         var m, t;
 
+        if (Utils.isNull(options)) {
+            options = {};
+        }
+
         if (!Utils.isValue(message)) {
             return false;
         }
@@ -14215,11 +14189,14 @@ var Notify = {
             Utils.exec(Utils.isValue(options.onAppend) ? options.onAppend : o.onAppend, null, notify[0]);
 
             notify.css({
-                marginTop: o.distance
+                marginTop: Utils.isValue(options.onAppend) ? options.distance : o.distance
             }).fadeIn(100, function(){
+                var duration = Utils.isValue(options.duration) ? options.duration : o.duration;
+                var animation = Utils.isValue(options.animation) ? options.animation : o.animation;
+
                 notify.animate({
                     marginTop: ".25rem"
-                }, o.duration, o.animation, function(){
+                }, duration, animation, function(){
 
                     Utils.exec(o.onNotifyCreate, null, this);
 
@@ -14476,6 +14453,9 @@ var Popover = {
             }
             setTimeout(function(){
                 that.createPopover();
+
+                Utils.exec(o.onPopoverShow, [that.popover], element[0]);
+
                 if (o.popoverHide > 0) {
                     setTimeout(function(){
                         that.removePopover();
@@ -14604,6 +14584,7 @@ var Popover = {
 
     show: function(){
         var that = this, element = this.element, o = this.options;
+
         if (this.popovered === true) {
             return ;
         }
@@ -14611,7 +14592,7 @@ var Popover = {
         setTimeout(function(){
             that.createPopover();
 
-            Utils.exec(o.onPopoverShow, [popover], element[0]);
+            Utils.exec(o.onPopoverShow, [that.popover], element[0]);
 
             if (o.popoverHide > 0) {
                 setTimeout(function(){
@@ -14900,7 +14881,7 @@ var Radio = {
     },
 
     toggleState: function(){
-        if (this.element.data("disabled") === false) {
+        if (this.elem.disabled) {
             this.disable();
         } else {
             this.enable();
@@ -15081,6 +15062,12 @@ var Rating = {
             }
         }
 
+        if (element.is(":disabled")) {
+            this.disable();
+        } else {
+            this.enable();
+        }
+
         this.rating = rating;
     },
 
@@ -15172,10 +15159,29 @@ var Rating = {
         this.static(isStatic);
     },
 
+    disable: function(){
+        this.element.data("disabled", true);
+        this.element.parent().addClass("disabled");
+    },
+
+    enable: function(){
+        this.element.data("disabled", false);
+        this.element.parent().removeClass("disabled");
+    },
+
+    toggleState: function(){
+        if (this.elem.disabled) {
+            this.disable();
+        } else {
+            this.enable();
+        }
+    },
+
     changeAttribute: function(attributeName){
         switch (attributeName) {
             case "value":
             case "data-value": this.changeAttributeValue(attributeName); break;
+            case "disabled": this.toggleState(); break;
             case "data-message": this.changeAttributeMessage(); break;
             case "data-static": this.changeAttributeStatic(); break;
         }
@@ -15874,7 +15880,7 @@ var Select = {
     },
 
     toggleState: function(){
-        if (this.element.data("disabled") === false) {
+        if (this.elem.disabled) {
             this.disable();
         } else {
             this.enable();
@@ -16399,6 +16405,12 @@ var Slider = {
             }
         }
 
+        if (element.is(":disabled")) {
+            this.disable();
+        } else {
+            this.enable();
+        }
+
         this.slider = slider;
     },
 
@@ -16717,10 +16729,29 @@ var Slider = {
         this.buff(val);
     },
 
+    disable: function(){
+        this.element.data("disabled", true);
+        this.element.parent().addClass("disabled");
+    },
+
+    enable: function(){
+        this.element.data("disabled", false);
+        this.element.parent().removeClass("disabled");
+    },
+
+    toggleState: function(){
+        if (this.elem.disabled) {
+            this.disable();
+        } else {
+            this.enable();
+        }
+    },
+
     changeAttribute: function(attributeName){
         switch (attributeName) {
             case "data-value": this.changeValue(); break;
             case "data-buffer": this.changeBuffer(); break;
+            case 'disabled': this.toggleState(); break;
         }
     }
 };
@@ -17174,13 +17205,12 @@ var Spinner = {
     },
 
     toggleState: function(){
-        if (this.element.data("disabled") === false) {
+        if (this.elem.disabled) {
             this.disable();
         } else {
             this.enable();
         }
     },
-
 
     changeAttribute: function(attributeName){
         var that = this, element = this.element;
@@ -17335,6 +17365,9 @@ var Splitter = {
 
             gutter.addClass("active");
 
+            prev_block.addClass("stop-select stop-pointer");
+            next_block.addClass("stop-select stop-pointer");
+
             Utils.exec(o.onResizeStart, [start_pos, gutter, prev_block, next_block], element);
 
             $(window).on(Metro.events.move + "-" + element.attr("id"), function(e){
@@ -17355,6 +17388,9 @@ var Splitter = {
             });
 
             $(window).on(Metro.events.stop + "-" + element.attr("id"), function(e){
+
+                prev_block.removeClass("stop-select stop-pointer");
+                next_block.removeClass("stop-select stop-pointer");
 
                 that._saveSize();
 
@@ -18248,7 +18284,7 @@ var Switch = {
     },
 
     toggleState: function(){
-        if (this.element.data("disabled") === false) {
+        if (this.elem.disabled) {
             this.disable();
         } else {
             this.enable();
@@ -18324,6 +18360,7 @@ var Table = {
         clsDelButton: "",
         clsAddButton: "",
 
+        horizontalScroll: false,
         check: false,
         checkType: "checkbox",
         checkStyle: 1,
@@ -18381,6 +18418,7 @@ var Table = {
         cellWrapper: true,
 
         clsComponent: "",
+        clsTableContainer: "",
         clsTable: "",
 
         clsHead: "",
@@ -18845,9 +18883,6 @@ var Table = {
                 classes.push("hidden");
             }
 
-            if (item.type === 'rowcheck') {classes.push("check-cell");}
-            if (item.type === 'rownum') {classes.push("rownum-cell");}
-
             classes.push(o.clsHeadCell);
 
             if (Utils.bool(view[cell_index]['show'])) {
@@ -18916,7 +18951,7 @@ var Table = {
 
     _createTopBlock: function (){
         var that = this, element = this.element, o = this.options;
-        var top_block = $("<div>").addClass("table-top").addClass(o.clsTableTop).insertBefore(element);
+        var top_block = $("<div>").addClass("table-top").addClass(o.clsTableTop).insertBefore(element.parent());
         var search_block, search_input, rows_block, rows_select;
 
         search_block = Utils.isValue(this.wrapperSearch) ? this.wrapperSearch : $("<div>").addClass("table-search-block").addClass(o.clsSearch).appendTo(top_block);
@@ -18964,7 +18999,7 @@ var Table = {
 
     _createBottomBlock: function (){
         var element = this.element, o = this.options;
-        var bottom_block = $("<div>").addClass("table-bottom").addClass(o.clsTableBottom).insertAfter(element);
+        var bottom_block = $("<div>").addClass("table-bottom").addClass(o.clsTableBottom).insertAfter(element.parent());
         var info, pagination;
 
         info = Utils.isValue(this.wrapperInfo) ? this.wrapperInfo : $("<div>").addClass("table-info").addClass(o.clsTableInfo).appendTo(bottom_block);
@@ -18982,7 +19017,7 @@ var Table = {
 
     _createStructure: function(){
         var that = this, element = this.element, o = this.options;
-        var table_component, columns;
+        var table_container, table_component, columns;
         var w_search = $(o.searchWrapper), w_info = $(o.infoWrapper), w_rows = $(o.rowsWrapper), w_paging = $(o.paginationWrapper);
 
         if (w_search.length > 0) {this.wrapperSearch = w_search;}
@@ -18990,11 +19025,14 @@ var Table = {
         if (w_rows.length > 0) {this.wrapperRows = w_rows;}
         if (w_paging.length > 0) {this.wrapperPagination = w_paging;}
 
-        if (!element.parent().hasClass("table-component")) {
-            table_component = $("<div>").addClass("table-component").insertBefore(element);
-            element.appendTo(table_component);
-        } else {
-            table_component = element.parent();
+        table_component = $("<div>").addClass("table-component");
+        table_component.insertBefore(element);
+
+        table_container = $("<div>").addClass("table-container").addClass(o.clsTableContainer).appendTo(table_component);
+        element.appendTo(table_container);
+
+        if (o.horizontalScroll === true) {
+            table_container.addClass("horizontal-scroll");
         }
 
         table_component.addClass(o.clsComponent);
@@ -19060,7 +19098,7 @@ var Table = {
 
     _createEvents: function(){
         var that = this, element = this.element, o = this.options;
-        var component = element.parent();
+        var component = element.closest(".table-component");
         var search = component.find(".table-search-block input");
         var customSearch;
         var id = element.attr("id");
@@ -19369,7 +19407,7 @@ var Table = {
 
     _info: function(start, stop, length){
         var element = this.element, o = this.options;
-        var component = element.parent();
+        var component = element.closest(".table-component");
         var info = Utils.isValue(this.wrapperInfo) ? this.wrapperInfo : component.find(".table-info");
         var text;
 
@@ -19394,7 +19432,7 @@ var Table = {
 
     _paging: function(length){
         var that = this, element = this.element, o = this.options;
-        var component = element.parent();
+        var component = element.closest(".table-component");
         var pagination_wrapper = Utils.isValue(this.wrapperPagination) ? this.wrapperPagination : component.find(".table-pagination");
         var i, prev, next;
         var shortDistance = 5;
@@ -19509,11 +19547,11 @@ var Table = {
                 if (that.searchFields.length > 0) {
                     $.each(that.heads, function(i, v){
                         if (that.searchFields.indexOf(v.name) > -1) {
-                            row_data += ""+row[i];
+                            row_data += "•"+row[i];
                         }
                     })
                 } else {
-                    row_data = row.join("");
+                    row_data = row.join("•");
                 }
 
                 row_data = row_data.replace(/[\n\r]+|[\s]{2,}/g, ' ').trim().toLowerCase();
@@ -19710,8 +19748,9 @@ var Table = {
 
     deleteItem: function(fieldIndex, value){
         var i, deleteIndexes = [];
+        var is_func = Utils.isFunc(value);
         for(i = 0; i < this.items.length; i++) {
-            if (Utils.isFunc(value)) {
+            if (is_func) {
                 if (Utils.exec(value, [this.items[i][fieldIndex]])) {
                     deleteIndexes.push(i);
                 }
@@ -19729,6 +19768,7 @@ var Table = {
 
     deleteItemByName: function(fieldName, value){
         var i, fieldIndex, deleteIndexes = [];
+        var is_func = Utils.isFunc(value);
 
         for(i = 0; i < this.heads.length; i++) {
             if (this.heads[i]['name'] === fieldName) {
@@ -19738,7 +19778,7 @@ var Table = {
         }
 
         for(i = 0; i < this.items.length; i++) {
-            if (Utils.isFunc(value)) {
+            if (is_func) {
                 if (Utils.exec(value, [this.items[i][fieldIndex]])) {
                     deleteIndexes.push(i);
                 }
@@ -20390,6 +20430,7 @@ var Tabs = {
         expand: false,
         expandPoint: null,
         tabsPosition: "top",
+        tabsType: "default",
 
         clsTabs: "",
         clsTabsList: "",
@@ -20439,6 +20480,9 @@ var Tabs = {
         container.addClass(o.tabsPosition.replace(["-", "_", "+"], " "));
 
         element.addClass("tabs-list");
+        if (o.tabsType !== "default") {
+            element.addClass("tabs-"+o.tabsType);
+        }
         if (!right_parent) {
             container.insertBefore(element);
             element.appendTo(container);
@@ -20707,6 +20751,12 @@ var TagInput = {
                 that._addTag(this);
             })
         }
+
+        if (element.is(":disabled")) {
+            this.disable();
+        } else {
+            this.enable();
+        }
     },
 
     _createEvents: function(){
@@ -20848,6 +20898,24 @@ var TagInput = {
         container.find(".tag").remove();
     },
 
+    disable: function(){
+        this.element.data("disabled", true);
+        this.element.parent().addClass("disabled");
+    },
+
+    enable: function(){
+        this.element.data("disabled", false);
+        this.element.parent().removeClass("disabled");
+    },
+
+    toggleState: function(){
+        if (this.elem.disabled) {
+            this.disable();
+        } else {
+            this.enable();
+        }
+    },
+
     changeAttribute: function(attributeName){
         var that = this, element = this.element, o = this.options;
 
@@ -20862,6 +20930,7 @@ var TagInput = {
 
         switch (attributeName) {
             case "value": changeValue(); break;
+            case "disabled": this.toggleState(); break;
         }
     },
 
@@ -21068,7 +21137,7 @@ var Textarea = {
     },
 
     toggleState: function(){
-        if (this.element.data("disabled") === false) {
+        if (this.elem.disabled) {
             this.disable();
         } else {
             this.enable();
@@ -23485,6 +23554,7 @@ var Validator = {
         interactiveCheck: false,
         clearInvalid: 0,
         requiredMode: true,
+        useRequiredClass: true,
         onBeforeSubmit: Metro.noop_true,
         onSubmit: Metro.noop,
         onError: Metro.noop,
@@ -23513,14 +23583,14 @@ var Validator = {
         var inputs = element.find("[data-validate]");
 
         element
-            .attr("novalidate", 'novalidate')
-            .attr("action", "javascript:");
+            .attr("novalidate", 'novalidate');
+            //.attr("action", "javascript:");
 
         $.each(inputs, function(){
             var input = $(this);
             var funcs = input.data("validate");
             var required = funcs.indexOf("required") > -1;
-            if (required) {
+            if (required && o.useRequiredClass === true) {
                 if (ValidatorFuncs.is_control(input)) {
                     input.parent().addClass("required");
                 } else {
