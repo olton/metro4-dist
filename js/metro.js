@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.29 build 708 (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.30 build 709 (https://metroui.org.ua)
  * Copyright 2018 Sergey Pimenov
  * Licensed under MIT
  */
@@ -100,8 +100,8 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.29",
-    versionFull: "4.2.29.708 ",
+    version: "4.2.30",
+    versionFull: "4.2.30.709 ",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -6781,6 +6781,8 @@ var Carousel = {
         onMouseLeave: Metro.noop,
         onNextClick: Metro.noop,
         onPrevClick: Metro.noop,
+        onSlideShow: Metro.noop,
+        onSlideHide: Metro.noop,
         onCarouselCreate: Metro.noop
     },
 
@@ -7147,6 +7149,14 @@ var Carousel = {
             case 'fade': Animation['fade'](current, next, duration, effectFunc); break;
             default: Animation['switch'](current, next);
         }
+
+        setTimeout(function(){
+            Utils.exec(o.onSlideShow, [next[0]], element[0]);
+        }, duration);
+
+        setTimeout(function(){
+            Utils.exec(o.onSlideHide, [current[0]], element[0]);
+        }, duration);
 
         if (interval === true) {
 
@@ -17337,6 +17347,7 @@ var Splitter = {
                 children_sizes = Utils.strToArray(o.minSizes);
                 for (i = 0; i < children_sizes.length; i++) {
                     $(children[i]).data("min-size", children_sizes[i]);
+                    children[i].style.setProperty('min-'+resizeProp, String(children_sizes[i]).contains("%") ? children_sizes[i] : String(children_sizes[i]).replace("px", "")+"px", 'important');
                 }
             } else {
                 $.each(children, function(){
@@ -21849,16 +21860,45 @@ $(document).on(Metro.events.click, function(e){
 
 // Source: js/plugins/toast.js
 var Toast = {
+
+    options: {
+        callback: Metro.noop,
+        timeout: METRO_TIMEOUT,
+        distance: 20,
+        showTop: false,
+        clsToast: ""
+    },
+
+    init: function(options){
+        this.options = $.extend({}, this.options, options);
+
+        return this;
+    },
+
     create: function(message, callback, timeout, cls){
+        var o = this.options;
         var toast = $("<div>").addClass("toast").html(message).appendTo($("body")).hide();
         var width = toast.outerWidth();
         var timer = null;
-        timeout = timeout || METRO_TIMEOUT;
+
+        timeout = timeout || o.timeout;
+        callback = callback || o.callback;
+        cls = cls || o.clsToast;
+
+        if (o.showTop === true) {
+            toast.addClass("show-top").css({
+                top: o.distance
+            });
+        } else {
+            toast.css({
+                bottom: o.distance
+            })
+        }
 
         toast.css({
             'left': '50%',
             'margin-left': -(width / 2)
-        }).addClass(cls).fadeIn(METRO_ANIMATION_DURATION);
+        }).addClass(o.clsToast).addClass(cls).fadeIn(METRO_ANIMATION_DURATION);
 
         timer = setTimeout(function(){
             timer = null;
@@ -21870,7 +21910,7 @@ var Toast = {
     }
 };
 
-Metro['toast'] = Toast;
+Metro['toast'] = Toast.init();
 
 // Source: js/plugins/touch.js
 var TouchConst = {
