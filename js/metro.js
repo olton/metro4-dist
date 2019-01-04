@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.33 build 712 (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.34 build 715 (https://metroui.org.ua)
  * Copyright 2019 Sergey Pimenov
  * Licensed under MIT
  */
@@ -13,7 +13,7 @@
 }(function( jQuery ) { 
 // Source: js/metro.js
 
-//'use strict';
+'use strict';
 
 var $ = jQuery;
 
@@ -100,8 +100,8 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.33",
-    versionFull: "4.2.33.712 ",
+    version: "4.2.34",
+    versionFull: "4.2.34.715 ",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -286,6 +286,7 @@ var Metro = {
                     var mc = element.data('metroComponent');
                     if (mc !== undefined) {
                         $.each(mc, function(){
+                            'use strict';
                             var plug = element.data(this);
                             if (plug) plug.changeAttribute(mutation.attributeName);
                         });
@@ -301,7 +302,7 @@ var Metro = {
                         var node = mutation.addedNodes[i];
 
                         if (node.tagName === 'SCRIPT' || node.tagName === 'STYLE') {
-                            return ;
+                            continue ;
                         }
                         obj = $(mutation.addedNodes[i]);
 
@@ -368,6 +369,7 @@ var Metro = {
 
     initHotkeys: function(hotkeys){
         $.each(hotkeys, function(){
+            'use strict';
             var element = $(this);
             var hotkey = element.data('hotkey') ? element.data('hotkey').toLowerCase() : false;
 
@@ -403,6 +405,7 @@ var Metro = {
         var that = this;
 
         $.each(widgets, function () {
+            'use strict';
             var $this = $(this), w = this;
             var roles = $this.data('role').split(/\s*,\s*/);
             roles.map(function (func) {
@@ -458,6 +461,7 @@ var Metro = {
         var mc = $(element).data("metroComponent");
 
         if (mc !== undefined && mc.length > 0) $.each(mc, function(){
+            'use strict';
             Metro.destroyPlugin(element, this);
         });
     },
@@ -492,6 +496,7 @@ var Metro = {
         var mc = $(element).data("metroComponent");
 
         if (mc !== undefined && mc.length > 0) $.each(mc, function(){
+            'use strict';
             Metro.reinitPlugin(element, this);
         });
     },
@@ -3419,8 +3424,11 @@ var Utils = {
     isEmbedObject: function(val){
         var embed = ["iframe", "object", "embed", "video"];
         var result = false;
-        $.each(embed, function(){
-            if (val.indexOf(this) !== -1) {
+        $.each(embed, function(i, v){
+            'use strict';
+            if (typeof val === "string" && val.toLowerCase() === v) {
+                result = true;
+            } else if (val.nodeType !== undefined && val.tagName.toLowerCase() === v) {
                 result = true;
             }
         });
@@ -7611,7 +7619,7 @@ var Checkbox = {
     },
 
     _setOptionsFromDOM: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
 
         $.each(element.data(), function(key, value){
             if (key in o) {
@@ -7625,9 +7633,7 @@ var Checkbox = {
     },
 
     _create: function(){
-        var that = this, element = this.element, o = this.options;
-        var prev = element.prev();
-        var parent = element.parent();
+        var element = this.element, o = this.options;
         var checkbox = $("<label>").addClass("checkbox " + element[0].className).addClass(o.style === 2 ? "style2" : "");
         var check = $("<span>").addClass("check");
         var caption = $("<span>").addClass("caption").html(o.caption);
@@ -7639,14 +7645,10 @@ var Checkbox = {
         checkbox.attr('for', element.attr('id'));
 
         element.attr("type", "checkbox");
+
+        checkbox.insertBefore(element);
+
         element.appendTo(checkbox);
-
-        if (prev.length === 0) {
-            parent.prepend(checkbox);
-        } else {
-            checkbox.insertAfter(prev);
-        }
-
         check.appendTo(checkbox);
         caption.appendTo(checkbox);
 
@@ -7695,7 +7697,7 @@ var Checkbox = {
     },
 
     changeAttribute: function(attributeName){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
         var parent = element.parent();
 
         var changeStyle = function(){
@@ -7719,7 +7721,7 @@ var Checkbox = {
     },
 
     destroy: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element;
         var parent = element.parent();
 
         element[0].className = this.origin.className;
@@ -7900,8 +7902,6 @@ var Collapse = {
         if (o.collapsed === true || element.attr("collapsed") === true) {
             element.hide(0);
         }
-
-        console.log(toggle);
 
         toggle.on(Metro.events.click, function(e){
             console.log("ku");
@@ -11788,6 +11788,7 @@ var Input = {
     },
     options: {
         autocomplete: null,
+        autocompleteDivider: ",",
         autocompleteListHeight: 200,
 
         history: false,
@@ -11951,7 +11952,7 @@ var Input = {
             if (autocomplete_obj !== false) {
                 that.autocomplete = autocomplete_obj;
             } else {
-                this.autocomplete = Utils.strToArray(o.autocomplete);
+                this.autocomplete = Utils.strToArray(o.autocomplete, o.autocompleteDivider);
             }
             $("<div>").addClass("autocomplete-list").css({
                 maxHeight: o.autocompleteListHeight,
@@ -12075,15 +12076,15 @@ var Input = {
                 display: items.length > 0 ? "block" : "none"
             });
 
-            $.each(items, function(){
-                var index = this.toLowerCase().indexOf(val);
-                var item = $("<div>").addClass("item").attr("data-autocomplete-value", this);
+            $.each(items, function(i, v){
+                var index = v.toLowerCase().indexOf(val);
+                var item = $("<div>").addClass("item").attr("data-autocomplete-value", v);
                 var html;
 
                 if (index === 0) {
-                    html = "<strong>"+this.substr(0, val.length)+"</strong>"+this.substr(val.length);
+                    html = "<strong>"+v.substr(0, val.length)+"</strong>"+v.substr(val.length);
                 } else {
-                    html = this.substr(0, index) + "<strong>"+this.substr(index, val.length)+"</strong>"+this.substr(index + val.length);
+                    html = v.substr(0, index) + "<strong>"+v.substr(index, val.length)+"</strong>"+v.substr(index + val.length);
                 }
                 item.html(html).appendTo(autocompleteList);
             })
@@ -15025,7 +15026,7 @@ var Radio = {
     },
 
     _setOptionsFromDOM: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
 
         $.each(element.data(), function(key, value){
             if (key in o) {
@@ -15039,21 +15040,14 @@ var Radio = {
     },
 
     _create: function(){
-        var that = this, element = this.element, o = this.options;
-        var prev = element.prev();
-        var parent = element.parent();
+        var element = this.element, o = this.options;
         var radio = $("<label>").addClass("radio " + element[0].className).addClass(o.style === 2 ? "style2" : "");
         var check = $("<span>").addClass("check");
         var caption = $("<span>").addClass("caption").html(o.caption);
 
         element.attr("type", "radio");
 
-        if (prev.length === 0) {
-            parent.prepend(radio);
-        } else {
-            radio.insertAfter(prev);
-        }
-
+        radio.insertBefore(element);
         element.appendTo(radio);
         check.appendTo(radio);
         caption.appendTo(radio);
@@ -15095,7 +15089,7 @@ var Radio = {
     },
 
     changeAttribute: function(attributeName){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
         var parent = element.parent();
 
         var changeStyle = function(){
@@ -16104,7 +16098,6 @@ var Select = {
         var select = element.closest('.select');
 
         $.each(options, function(){
-            console.log(this.defaultSelected);
             this.selected = !Utils.isNull(to_default) ? this.defaultSelected : false;
         });
 
@@ -16145,7 +16138,9 @@ var Select = {
             return multiple ? result : result[0];
         }
 
-        $.each(options, function(){this.selected = false;});
+        $.each(options, function(){
+            this.selected = false;
+        });
         list_items.removeClass("active");
         input.html('');
 
@@ -16416,9 +16411,9 @@ var Sidebar = {
         element.data("opened", true).addClass('open');
 
         if (o.shift !== null) {
-            $.each(o.shift.split(","), function(){
-                $(this).animate({left: element.outerWidth()}, o.duration);
-            });
+            $(o.shift).animate({
+                left: element.outerWidth()
+            }, o.duration);
         }
 
         Utils.exec(o.onOpen, [element], element[0]);
@@ -16434,9 +16429,9 @@ var Sidebar = {
         element.data("opened", false).removeClass('open');
 
         if (o.shift !== null) {
-            $.each(o.shift.split(","), function(){
-                $(this).animate({left: 0}, o.duration);
-            });
+            $(o.shift).animate({
+                left: 0
+            }, o.duration);
         }
 
         Utils.exec(o.onClose, [element], element[0]);
@@ -18193,6 +18188,8 @@ var Streamer = {
                 return;
             }
 
+            console.log(index, element.data("stream"));
+
             if (element.data("stream") === index) {
                 element.find(".stream-event").removeClass("disabled");
                 element.data("stream", -1);
@@ -18256,14 +18253,14 @@ var Streamer = {
 
     enableStream: function(stream){
         var that = this, element = this.element, o = this.options, data = this.data;
-        var index = stream.index();
+        var index = stream.index()-1;
         stream.removeClass("disabled").data("streamDisabled", false);
         element.find(".stream-events").eq(index).find(".stream-event").removeClass("disabled");
     },
 
     disableStream: function(stream){
         var that = this, element = this.element, o = this.options, data = this.data;
-        var index = stream.index();
+        var index = stream.index()-1;
         stream.addClass("disabled").data("streamDisabled", true);
         element.find(".stream-events").eq(index).find(".stream-event").addClass("disabled");
     },
@@ -18468,7 +18465,7 @@ var Switch = {
     },
 
     _setOptionsFromDOM: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
 
         $.each(element.data(), function(key, value){
             if (key in o) {
@@ -18482,21 +18479,14 @@ var Switch = {
     },
 
     _create: function(){
-        var that = this, element = this.element, o = this.options;
-        var prev = element.prev();
-        var parent = element.parent();
+        var element = this.element, o = this.options;
         var container = $("<label>").addClass((o.material === true ? " switch-material " : " switch ") + element[0].className);
         var check = $("<span>").addClass("check");
         var caption = $("<span>").addClass("caption").html(o.caption);
 
         element.attr("type", "checkbox");
 
-        if (prev.length === 0) {
-            parent.prepend(container);
-        } else {
-            container.insertAfter(prev);
-        }
-
+        container.insertBefore(element);
         element.appendTo(container);
         check.appendTo(container);
         caption.appendTo(container);
@@ -22070,14 +22060,8 @@ var Toast = {
         clsToast: ""
     },
 
-    init: function(options){
-        this.options = $.extend({}, this.options, options);
-
-        return this;
-    },
-
-    create: function(message, callback, timeout, cls){
-        var o = this.options;
+    create: function(message, callback, timeout, cls, options){
+        var o = options || Toast.options;
         var toast = $("<div>").addClass("toast").html(message).appendTo($("body")).hide();
         var width = toast.outerWidth();
         var timer = null;
@@ -22111,7 +22095,7 @@ var Toast = {
     }
 };
 
-Metro['toast'] = Toast.init();
+Metro['toast'] = Toast;
 
 // Source: js/plugins/touch.js
 
