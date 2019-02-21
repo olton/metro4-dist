@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.36 build 717 (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.37 build 718 (https://metroui.org.ua)
  * Copyright 2019 Sergey Pimenov
  * Licensed under MIT
  */
@@ -100,8 +100,8 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.36",
-    versionFull: "4.2.36.717 ",
+    version: "4.2.37",
+    versionFull: "4.2.37.718 ",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -176,7 +176,7 @@ var Metro = {
         resize: 'resize.metro',
         keyup: 'keyup.metro',
         keydown: 'keydown.metro',
-        keypress: 'keypredd.metro',
+        keypress: 'keypress.metro',
         dblclick: 'dblclick.metro',
         input: 'input.metro',
         change: 'change.metro',
@@ -4099,8 +4099,8 @@ var Utils = {
         return Object.values(obj).indexOf(value) > -1;
     },
 
-    keyInObject: function(){
-        return Object.keys(obj).indexOf(value) > -1;
+    keyInObject: function(obj, key){
+        return Object.keys(obj).indexOf(key) > -1;
     },
 
     inObject: function(obj, key, val){
@@ -10139,8 +10139,6 @@ var Draggable = {
                 that.move = false;
 
                 Utils.exec(o.onDragStop, [position], elem);
-                e.preventDefault();
-                e.stopPropagation();
             });
         });
     },
@@ -11674,8 +11672,6 @@ var MaterialInput = {
 
     _createStructure: function(){
         var element = this.element, o = this.options;
-        var prev = element.prev();
-        var parent = element.parent();
         var container = $("<div>").addClass("input-material " + element[0].className);
 
         element[0].className = "";
@@ -11685,12 +11681,7 @@ var MaterialInput = {
             element.attr("type", "text");
         }
 
-        if (prev.length === 0) {
-            parent.prepend(container);
-        } else {
-            container.insertAfter(prev);
-        }
-
+        container.insertBefore(element);
         element.appendTo(container);
 
         if (Utils.isValue(o.label)) {
@@ -11718,6 +11709,10 @@ var MaterialInput = {
         } else {
             this.enable();
         }
+    },
+
+    _createEvents: function(){
+
     },
 
     clear: function(){
@@ -18894,10 +18889,10 @@ var Table = {
 
     _createInspector: function(){
         var o = this.options;
-        var component = this.component;
         var inspector, table_wrap, table, tbody, actions;
 
         inspector = $("<div data-role='draggable' data-drag-element='.table-inspector-header' data-drag-area='body'>").addClass("table-inspector");
+        inspector.attr("for", this.element.attr("id"));
 
         $("<div class='table-inspector-header'>"+o.inspectorTitle+"</div>").appendTo(inspector);
 
@@ -18915,9 +18910,10 @@ var Table = {
         $("<button class='button secondary js-table-inspector-reset ml-2 mr-2' type='button'>").html(this.locale.buttons.reset).appendTo(actions);
         $("<button class='button link js-table-inspector-cancel place-right' type='button'>").html(this.locale.buttons.cancel).appendTo(actions);
 
+        inspector.data("open", false);
         this.inspector = inspector;
 
-        component.append(inspector);
+        $("body").append(inspector);
 
         this._createInspectorEvents();
     },
@@ -19349,7 +19345,7 @@ var Table = {
             that.activity.show(o.activityTimeout, function(){
                 that.currentPage = 1;
                 that.sort.colIndex = col.data("index");
-                if (!col.has("sort-asc") && !col.hasClass("sort-desc")) {
+                if (!col.hasClass("sort-asc") && !col.hasClass("sort-desc")) {
                     that.sort.dir = o.sortDir;
                 } else {
                     if (col.hasClass("sort-asc")) {
@@ -19800,10 +19796,11 @@ var Table = {
                 return result;
             });
 
-            Utils.exec(o.onSearch, [that.searchString, items], element[0])
         } else {
             items = this.items;
         }
+
+        Utils.exec(o.onSearch, [that.searchString, items], element[0]);
 
         this.filteredItems = items;
 
@@ -20292,7 +20289,17 @@ var Table = {
     },
 
     openInspector: function(mode){
-        this.inspector[mode ? "addClass" : "removeClass"]("open");
+        var ins = this.inspector;
+        if (mode) {
+            ins.show(0, function(){
+                ins.css({
+                    top: ($(window).height()  - ins.outerHeight(true)) / 2 + pageYOffset,
+                    left: ($(window).width() - ins.outerWidth(true)) / 2 + pageXOffset
+                }).data("open", true);
+            });
+        } else {
+            ins.hide().data("open", false);
+        }
     },
 
     closeInspector: function(){
@@ -20300,7 +20307,7 @@ var Table = {
     },
 
     toggleInspector: function(){
-        this.inspector.toggleClass("open");
+        this.openInspector(!this.inspector.data("open"));
     },
 
     resetView: function(){
@@ -23415,15 +23422,19 @@ var Treeview = {
     toggleNode: function(node){
         var element = this.element, o = this.options;
         var func;
+        var toBeExpanded = !node.hasClass("expanded");
 
         node.toggleClass("expanded");
 
         if (o.effect === "slide") {
-            func = node.hasClass("expanded") !== true ? "slideUp" : "slideDown";
-            Utils.exec(o.onCollapseNode, [node, element]);
+            func = toBeExpanded === true ? "slideUp" : "slideDown";
         } else {
-            func = node.hasClass("expanded") !== true ? "fadeOut" : "fadeIn";
+            func = toBeExpanded === true ? "fadeOut" : "fadeIn";
+        }
+        if (toBeExpanded) {
             Utils.exec(o.onExpandNode, [node, element]);
+        } else {
+            Utils.exec(o.onCollapseNode, [node, element]);
         }
 
         node.children("ul")[func](o.duration);
@@ -24670,10 +24681,8 @@ var Window = {
             icon.appendTo(caption);
         }
 
-        if (Utils.isValue(o.title)) {
-            title = $("<span>").addClass("title").html(o.title);
-            title.appendTo(caption);
-        }
+        title = $("<span>").addClass("title").html(Utils.isValue(o.title) ? o.title : "&nbsp;");
+        title.appendTo(caption);
 
         if (o.content !== undefined && o.content !== 'original') {
 
