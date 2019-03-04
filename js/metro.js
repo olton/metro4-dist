@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.37 build 718 (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.38  (https://metroui.org.ua)
  * Copyright 2019 Sergey Pimenov
  * Licensed under MIT
  */
@@ -96,12 +96,18 @@ if (typeof Object.values !== 'function') {
     }
 }
 
+if (typeof window.setImmediate !== 'function') {
+    window.setImmediate = function(fn){
+        return setTimeout(fn, 0);
+    }
+}
+
 var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
 
 var Metro = {
 
-    version: "4.2.37",
-    versionFull: "4.2.37.718 ",
+    version: "4.2.38",
+    versionFull: "4.2.38.719 ",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -1831,6 +1837,13 @@ $.fn.extend({
     clearClasses: function(){
         return this.each(function(){
             this.className = "";
+        });
+    },
+    fire: function(eventName, data){
+        return this.each(function(){
+            var e = jQuery.Event(eventName);
+            e.detail = data;
+            $(this).trigger(e);
         });
     }
 });
@@ -4337,8 +4350,6 @@ var Accordion = {
         this._setOptionsFromDOM();
         this._create();
 
-        Utils.exec(this.options.onAccordionCreate, [this.element]);
-
         return this;
     },
     options: {
@@ -4371,6 +4382,19 @@ var Accordion = {
     },
 
     _create: function(){
+        var element = this.element, o = this.options;
+
+        this._createStructure();
+        this._createEvents();
+
+        Utils.exec(o.onAccordionCreate, [element]);
+
+        setImmediate(function(){
+            element.fire("accordioncreate");
+        });
+    },
+
+    _createStructure: function(){
         var that = this, element = this.element, o = this.options;
         var frames = element.children(".frame");
         var active = element.children(".frame.active");
@@ -4393,8 +4417,6 @@ var Accordion = {
         if (o.showActive === true || o.oneFrame === true) {
             this._openFrame(frame_to_open);
         }
-
-        this._createEvents();
     },
 
     _createEvents: function(){
@@ -4417,14 +4439,11 @@ var Accordion = {
             } else {
                 that._openFrame(frame);
             }
-
-            element.trigger("open", {frame: frame});
         });
     },
 
     _openFrame: function(f){
-        var that = this, element = this.element, o = this.options;
-        var frames = element.children(".frame");
+        var element = this.element, o = this.options;
         var frame = $(f);
 
         if (Utils.exec(o.onFrameBeforeOpen, [frame], element[0]) === false) {
@@ -4440,11 +4459,17 @@ var Accordion = {
         frame.children(".content").addClass(o.activeContentClass).slideDown(o.duration);
 
         Utils.exec(o.onFrameOpen, [frame], element[0]);
+
+        element.fire("frameopen", frame);
     },
 
     _closeFrame: function(f){
         var that = this, element = this.element, o = this.options;
         var frame = $(f);
+
+        if (!frame.hasClass("active")) {
+            return ;
+        }
 
         if (Utils.exec(o.onFrameBeforeClose, [frame], element[0]) === false) {
             return ;
@@ -4455,6 +4480,8 @@ var Accordion = {
         frame.children(".content").removeClass(o.activeContentClass).slideUp(o.duration);
 
         Utils.callback(o.onFrameClose, [frame], element[0]);
+
+        element.fire("frameclose", frame);
     },
 
     _closeAll: function(){
@@ -4504,8 +4531,6 @@ var Activity = {
 
         this._setOptionsFromDOM();
         this._create();
-
-        Utils.exec(this.options.onActivityCreate, [this.element]);
 
         return this;
     },
@@ -4575,6 +4600,12 @@ var Activity = {
             case 'simple': _simple(); break;
             default: _ring();
         }
+
+        Utils.exec(this.options.onActivityCreate, [this.element]);
+
+        setImmediate(function(){
+            element.fire("activitycreate")
+        });
     },
 
     changeAttribute: function(attributeName){
@@ -4658,6 +4689,10 @@ var AppBar = {
         this._createEvents();
 
         Utils.exec(o.onAppBarCreate, [element]);
+
+        setImmediate(function(){
+            element.fire("appbarcreate");
+        });
     },
 
     _createStructure: function(){
@@ -7902,7 +7937,6 @@ var Collapse = {
         }
 
         toggle.on(Metro.events.click, function(e){
-            console.log("ku");
             if (element.css('display') === 'block' && !element.hasClass('keep-open')) {
                 that._close(element);
             } else {
@@ -14200,6 +14234,32 @@ var NavigationView = {
         Utils.exec(o.onNavigationViewCreate, [element]);
     },
 
+    _calcMenuHeight: function(){
+        var element = this.element, pane, menu;
+        var elements_height = 0;
+
+        pane = element.children(".navview-pane");
+        if (pane.length === 0) {
+            return;
+        }
+
+        menu = pane.children(".navview-menu");
+
+        if (menu.length === 0) {
+            return ;
+        }
+
+        $.each(menu.prevAll(), function(){
+            elements_height += $(this).outerHeight(true);
+        });
+        $.each(menu.nextAll(), function(){
+            elements_height += $(this).outerHeight(true);
+        });
+        menu.css({
+            height: "calc(100% - "+(elements_height + 20)+"px)"
+        });
+    },
+
     _createView: function(){
         var that = this, element = this.element, o = this.options;
         var pane, content, toggle, menu;
@@ -14213,19 +14273,7 @@ var NavigationView = {
         content = element.children(".navview-content");
         toggle = $(o.toggle);
 
-        menu = pane.find(".navview-menu");
-        if (menu.length > 0) {
-            var elements_height = 0;
-            $.each(menu.prevAll(), function(){
-                elements_height += $(this).outerHeight(true);
-            });
-            $.each(menu.nextAll(), function(){
-                elements_height += $(this).outerHeight(true);
-            });
-            menu.css({
-                height: "calc(100% - "+(elements_height + 20)+"px)"
-            });
-        }
+        this._calcMenuHeight();
 
         this.pane = pane.length > 0 ? pane : null;
         this.content = content.length > 0 ? content : null;
@@ -14272,7 +14320,7 @@ var NavigationView = {
             })
         }
 
-        $(window).on(Metro.events.resize, function(){
+        $(window).on(Metro.events.resize+ "-navview", function(){
 
             element.removeClass("expand");
             that.pane.removeClass("open");
@@ -14281,6 +14329,7 @@ var NavigationView = {
                 element.removeClass("compacted");
             }
 
+            that._calcMenuHeight();
         })
     },
 
@@ -23422,9 +23471,12 @@ var Treeview = {
     toggleNode: function(node){
         var element = this.element, o = this.options;
         var func;
-        var toBeExpanded = !node.hasClass("expanded");
+        var toBeExpanded = !node.data("collapsed");//!node.hasClass("expanded");
+
+        console.log(toBeExpanded);
 
         node.toggleClass("expanded");
+        node.data("collapsed", toBeExpanded);
 
         if (o.effect === "slide") {
             func = toBeExpanded === true ? "slideUp" : "slideDown";
@@ -24851,6 +24903,7 @@ var Window = {
     maximized: function(e){
         var win = this.win,  o = this.options;
         var target = $(e.currentTarget);
+        win.removeClass("minimized");
         win.toggleClass("maximized");
         if (target.hasClass("window-caption")) {
             Utils.exec(o.onCaptionDblClick, [win]);
@@ -24861,6 +24914,7 @@ var Window = {
 
     minimized: function(){
         var win = this.win,  element = this.element, o = this.options;
+        win.removeClass("maximized");
         win.toggleClass("minimized");
         Utils.exec(o.onMinClick, [win], element[0]);
     },
