@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.38  (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.39  (https://metroui.org.ua)
  * Copyright 2019 Sergey Pimenov
  * Licensed under MIT
  */
@@ -106,8 +106,8 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.38",
-    versionFull: "4.2.38.719 ",
+    version: "4.2.39",
+    versionFull: "4.2.39.721 ",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -3771,7 +3771,7 @@ var Utils = {
     },
 
     arrayDelete: function(arr, val){
-        arr.splice(arr.indexOf(val), 1);
+        if (arr.indexOf(val) > -1) arr.splice(arr.indexOf(val), 1);
     },
 
     arrayDeleteByKey: function(arr, key){
@@ -10055,6 +10055,7 @@ var Draggable = {
             cursor: 'default',
             zIndex: '0'
         };
+        this.dragArea = null;
 
         this._setOptionsFromDOM();
         this._create();
@@ -10090,7 +10091,7 @@ var Draggable = {
 
     _create: function(){
         var that = this, element = this.element, elem = this.elem, o = this.options;
-        var dragArea;
+        var offset = element.offset();
         var position = {
             x: 0,
             y: 0
@@ -10099,15 +10100,25 @@ var Draggable = {
 
         dragElement[0].ondragstart = function(){return false;};
 
+        element.css("position", "absolute");
+
+        if (o.dragArea === 'document' || o.dragArea === 'window') {
+            o.dragArea = "body";
+        }
+
+        this.dragArea = o.dragArea === 'parent' ? element.parent() : $(o.dragArea);
+
+        if (o.dragArea !== 'parent') {
+            element.appendTo(this.dragArea);
+            element.css({
+                top: offset.top,
+                left: offset.left
+            });
+        }
+
         dragElement.on(Metro.events.start, function(e){
 
-            if (o.dragArea === 'document' || o.dragArea === 'window') {
-                o.dragArea = "body";
-            }
-
-            dragArea = o.dragArea === 'parent' ? element.parent() : $(o.dragArea);
-
-            var coord = o.dragArea === "body" ? element.offset() : element.position(),
+            var coord = o.dragArea !== "parent" ? element.offset() : element.position(),
                 shiftX = Utils.pageXY(e).x - coord.left,
                 shiftY = Utils.pageXY(e).y - coord.top;
 
@@ -10118,8 +10129,8 @@ var Draggable = {
                 if (top < 0) top = 0;
                 if (left < 0) left = 0;
 
-                if (top > dragArea.outerHeight() - element.outerHeight()) top = dragArea.outerHeight() - element.outerHeight();
-                if (left > dragArea.outerWidth() - element.outerWidth()) left = dragArea.outerWidth() - element.outerWidth();
+                if (top > that.dragArea.outerHeight() - element.outerHeight()) top = that.dragArea.outerHeight() - element.outerHeight();
+                if (left > that.dragArea.outerWidth() - element.outerWidth()) left = that.dragArea.outerWidth() - element.outerWidth();
 
                 position.y = top;
                 position.x = left;
@@ -10144,9 +10155,7 @@ var Draggable = {
             that.backup.cursor = element.css("cursor");
             that.backup.zIndex = element.css("z-index");
 
-            element.css("position", "absolute").addClass("draggable");
-
-            element.appendTo(dragArea);
+            element.addClass("draggable");
 
             moveElement(e);
 
@@ -14208,11 +14217,13 @@ var NavigationView = {
         compact: "md",
         expanded: "lg",
         toggle: null,
-        onNavigationViewCreate: Metro.noop
+        activeState: false,
+        onMenuItemClick: Metro.noop,
+        onNavViewCreate: Metro.noop
     },
 
     _setOptionsFromDOM: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
 
         $.each(element.data(), function(key, value){
             if (key in o) {
@@ -14226,12 +14237,12 @@ var NavigationView = {
     },
 
     _create: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
 
         this._createView();
         this._createEvents();
 
-        Utils.exec(o.onNavigationViewCreate, [element]);
+        Utils.exec(o.onNavViewCreate, [element]);
     },
 
     _calcMenuHeight: function(){
@@ -14261,8 +14272,8 @@ var NavigationView = {
     },
 
     _createView: function(){
-        var that = this, element = this.element, o = this.options;
-        var pane, content, toggle, menu;
+        var element = this.element, o = this.options;
+        var pane, content, toggle;
 
         element
             .addClass("navview")
@@ -14282,36 +14293,20 @@ var NavigationView = {
 
     _createEvents: function(){
         var that = this, element = this.element, o = this.options;
-        var pane = this.pane, content = this.content;
 
-        element.on(Metro.events.click, ".pull-button, .holder", function(e){
-            var pane_compact = pane.width() < 280;
-            var target = $(this);
-            var input;
+        element.on(Metro.events.click, ".pull-button, .holder", function(){
+            that.pullClick(this);
+        });
 
-            if (target.hasClass("holder")) {
-                input = target.parent().find("input");
-                setTimeout(function(){
-                    input.focus();
-                }, 200);
+        element.on(Metro.events.click, ".navview-menu li", function(){
+            if (o.activeState === true) {
+                element.find(".navview-menu li").removeClass("active");
+                $(this).toggleClass("active");
             }
+        });
 
-            if (that.pane.hasClass("open")) {
-                that.close();
-                return ;
-            }
-
-            if ((pane_compact || element.hasClass("expand")) && !element.hasClass("compacted")) {
-                element.toggleClass("expand");
-                return ;
-            }
-
-            if (element.hasClass("compacted") || !pane_compact) {
-                element.toggleClass("compacted");
-                return ;
-            }
-
-            return true;
+        element.on(Metro.events.click, ".navview-menu li > a", function(e){
+            Utils.exec(o.onMenuItemClick, null, this);
         });
 
         if (this.paneToggle !== null) {
@@ -14333,12 +14328,55 @@ var NavigationView = {
         })
     },
 
+    pullClick: function(el){
+        var that = this, element = this.element;
+        var pane = this.pane;
+        var pane_compact = pane.width() < 280;
+        var input;
+
+        var target = $(el);
+
+        if (target && target.hasClass("holder")) {
+            input = target.parent().find("input");
+            setTimeout(function(){
+                input.focus();
+            }, 200);
+        }
+
+        if (that.pane.hasClass("open")) {
+            that.close();
+            console.log("1");
+            return ;
+        }
+
+        if ((pane_compact || element.hasClass("expand")) && !element.hasClass("compacted")) {
+            element.toggleClass("expand");
+            console.log("2");
+            return ;
+        }
+
+        if (element.hasClass("compacted") || !pane_compact) {
+            element.toggleClass("compacted");
+            console.log("3");
+            return ;
+        }
+
+        console.log("0");
+
+        return true;
+    },
+
     open: function(){
         this.pane.addClass("open");
     },
 
     close: function(){
         this.pane.removeClass("open");
+    },
+
+    toggle: function(){
+        var pane = this.pane;
+        pane.hasClass("open") ? pane.removeClass("open") : pane.addClass("open");
     },
 
     changeAttribute: function(attributeName){
@@ -14512,6 +14550,9 @@ var Panel = {
         height: "auto",
         draggable: false,
 
+        customButtons: null,
+        clsCustomButton: "",
+
         clsPanel: "",
         clsTitle: "",
         clsTitleCaption: "",
@@ -14528,7 +14569,7 @@ var Panel = {
     },
 
     _setOptionsFromDOM: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
 
         $.each(element.data(), function(key, value){
             if (key in o) {
@@ -14542,12 +14583,13 @@ var Panel = {
     },
 
     _create: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
         var prev = element.prev();
         var parent = element.parent();
         var panel = $("<div>").addClass("panel").addClass(o.clsPanel);
         var id = Utils.uniqueId();
         var original_classes = element[0].className;
+        var title, buttons;
 
 
         if (prev.length === 0) {
@@ -14562,7 +14604,7 @@ var Panel = {
         element.addClass("panel-content").addClass(o.clsContent).appendTo(panel);
 
         if (o.titleCaption !== "" || o.titleIcon !== "" || o.collapsible === true) {
-            var title = $("<div>").addClass("panel-title").addClass(o.clsTitle);
+            title = $("<div>").addClass("panel-title").addClass(o.clsTitle);
 
             if (o.titleCaption !== "") {
                 $("<span>").addClass("caption").addClass(o.clsTitleCaption).html(o.titleCaption).appendTo(title)
@@ -14589,9 +14631,58 @@ var Panel = {
             title.appendTo(panel);
         }
 
+        if (title && Utils.isValue(o.customButtons)) {
+            var customButtons = [];
+
+            if (Utils.isObject(o.customButtons) !== false) {
+                o.customButtons = Utils.isObject(o.customButtons);
+            }
+
+            if (typeof o.customButtons === "string" && o.customButtons.indexOf("{") > -1) {
+                customButtons = JSON.parse(o.customButtons);
+            } else if (typeof o.customButtons === "object" && Utils.objectLength(o.customButtons) > 0) {
+                customButtons = o.customButtons;
+            } else {
+                console.log("Unknown format for custom buttons");
+            }
+
+            buttons = $("<div>").addClass("custom-buttons").appendTo(title);
+
+            $.each(customButtons, function(){
+                var item = this;
+                var customButton = $("<span>");
+
+                customButton
+                    .addClass("button btn-custom")
+                    .addClass(o.clsCustomButton)
+                    .addClass(item.cls)
+                    .attr("tabindex", -1)
+                    .html(item.html);
+
+                customButton.data("action", item.onclick);
+
+                buttons.prepend(customButton);
+            });
+
+            title.on(Metro.events.click, ".btn-custom", function(e){
+                if (Utils.isRightMouse(e)) return;
+                var button = $(this);
+                var action = button.data("action");
+                Utils.exec(action, [button], this);
+            });
+        }
+
         if (o.draggable === true) {
+            var dragElement;
+
+            if (title) {
+                dragElement = title.find(".caption, .icon");
+            } else {
+                dragElement = panel;
+            }
+
             panel.draggable({
-                dragElement: title || panel,
+                dragElement: dragElement,
                 onDragStart: o.onDragStart,
                 onDragStop: o.onDragStop,
                 onDragMove: o.onDragMove
@@ -14613,7 +14704,7 @@ var Panel = {
     },
 
     collapse: function(){
-        var element = this.element, o = this.options;
+        var element = this.element;
         if (Utils.isMetroObject(element, 'collapse') === false) {
             return ;
         }
@@ -14621,7 +14712,7 @@ var Panel = {
     },
 
     expand: function(){
-        var element = this.element, o = this.options;
+        var element = this.element;
         if (Utils.isMetroObject(element, 'collapse') === false) {
             return ;
         }
@@ -19218,6 +19309,7 @@ var Table = {
         var search_block, search_input, rows_block, rows_select;
 
         search_block = Utils.isValue(this.wrapperSearch) ? this.wrapperSearch : $("<div>").addClass("table-search-block").addClass(o.clsSearch).appendTo(top_block);
+        search_block.addClass(o.clsSearch);
 
         search_input = $("<input>").attr("type", "text").appendTo(search_block);
         search_input.input({
@@ -19228,7 +19320,8 @@ var Table = {
             search_block.hide();
         }
 
-        rows_block = Utils.isValue(this.wrapperRows) ? this.wrapperRows : $("<div>").addClass("table-rows-block").addClass(o.clsRowsCount).appendTo(top_block);
+        rows_block = Utils.isValue(this.wrapperRows) ? this.wrapperRows : $("<div>").addClass("table-rows-block").appendTo(top_block);
+        rows_block.addClass(o.clsRowsCount);
 
         rows_select = $("<select>").appendTo(rows_block);
         $.each(Utils.strToArray(o.rowsSteps), function () {
@@ -19265,12 +19358,14 @@ var Table = {
         var bottom_block = $("<div>").addClass("table-bottom").addClass(o.clsTableBottom).insertAfter(element.parent());
         var info, pagination;
 
-        info = Utils.isValue(this.wrapperInfo) ? this.wrapperInfo : $("<div>").addClass("table-info").addClass(o.clsTableInfo).appendTo(bottom_block);
+        info = Utils.isValue(this.wrapperInfo) ? this.wrapperInfo : $("<div>").addClass("table-info").appendTo(bottom_block);
+        info.addClass(o.clsTableInfo);
         if (o.showTableInfo !== true) {
             info.hide();
         }
 
-        pagination = Utils.isValue(this.wrapperPagination) ? this.wrapperPagination : $("<div>").addClass("table-pagination").addClass(o.clsTablePagination).appendTo(bottom_block);
+        pagination = Utils.isValue(this.wrapperPagination) ? this.wrapperPagination : $("<div>").addClass("table-pagination").appendTo(bottom_block);
+        pagination.addClass(o.clsTablePagination);
         if (o.showPagination !== true) {
             pagination.hide();
         }
@@ -22240,7 +22335,7 @@ var Touch = {
     },
 
     options: {
-        fingers: 1,
+        fingers: 2,
         threshold: 75,
         cancelThreshold: null,
         pinchThreshold: 20,
@@ -23569,21 +23664,28 @@ Metro.plugin('treeview', Treeview);
 
 var ValidatorFuncs = {
     required: function(val){
-        return Utils.isValue(val) ? val.trim() : false;
+        if (Array.isArray(val)) {
+            return val.length > 0 ? val : false;
+        } else {
+            return Utils.isValue(val) ? val.trim() : false;
+        }
     },
     length: function(val, len){
+        if (Array.isArray(val)) {return val.length === parseInt(len);}
         if (!Utils.isValue(len) || isNaN(len) || len <= 0) {
             return false;
         }
         return val.trim().length === parseInt(len);
     },
     minlength: function(val, len){
+        if (Array.isArray(val)) {return val.length >= parseInt(len);}
         if (!Utils.isValue(len) || isNaN(len) || len <= 0) {
             return false;
         }
         return val.trim().length >= parseInt(len);
     },
     maxlength: function(val, len){
+        if (Array.isArray(val)) {return val.length <= parseInt(len);}
         if (!Utils.isValue(len) || isNaN(len) || len <= 0) {
             return false;
         }
