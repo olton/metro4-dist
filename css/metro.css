@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.40  (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.41  (https://metroui.org.ua)
  * Copyright 2019 Sergey Pimenov
  * Licensed under MIT
  */
@@ -15947,10 +15947,12 @@ h6 {
 .text-leader {
   font-size: 1.5rem;
   font-weight: 300;
+  line-height: 1.2;
 }
 .text-leader2 {
   font-size: 1.25rem;
   font-weight: 300;
+  line-height: 1.2;
 }
 .text-muted {
   color: #bebebe;
@@ -16145,6 +16147,9 @@ mark {
 }
 del {
   color: #bebebe;
+}
+p {
+  line-height: 1.2;
 }
 * + p {
   margin-top: 1rem;
@@ -22283,6 +22288,7 @@ input:-webkit-autofill:active {
 }
 .select .d-menu li a .icon {
   top: 0.3rem;
+  margin-top: 0;
 }
 .select .d-menu .active {
   border: none;
@@ -24751,7 +24757,8 @@ figure img {
   margin-top: -1px;
 }
 .streamer .stream-events {
-  height: 75px;
+  min-height: 75px;
+  height: auto;
   width: auto;
   position: relative;
   display: -webkit-box;
@@ -24770,7 +24777,7 @@ figure img {
 }
 .streamer .stream-event {
   width: 222px;
-  height: calc(100% - 3px);
+  height: 72px;
   border: 1px solid #f5f5f5;
   margin: 2px 1px;
   background-color: #ffffff;
@@ -29799,6 +29806,12 @@ html.metro-touch-device .streamer .stream.focused .stream-icon {
 .calendar-picker.dialog-mode .calendar.open-up {
   top: auto;
   bottom: auto;
+}
+.calendar-picker .calendar-wide {
+  width: 464px;
+}
+.calendar-picker .calendar-wide.compact {
+  width: 364px;
 }
 .donut {
   display: block;
