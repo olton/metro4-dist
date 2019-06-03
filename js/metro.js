@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.43  (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.44  (https://metroui.org.ua)
  * Copyright 2012-2019 Sergey Pimenov
  * Licensed under MIT
  */
@@ -118,9 +118,9 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.43",
-    compileTime: "19/05/2019 22:19:38",
-    buildNumber: "724",
+    version: "4.2.44",
+    compileTime: "03/06/2019 10:32:10",
+    buildNumber: "725",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -6268,7 +6268,10 @@ var Calendar = {
     setMinDate: function(date){
         var that = this, element = this.element, o = this.options;
 
-        o.minDate = date !== null ? date : element.attr("data-min-date");
+        o.minDate = Utils.isValue(date) ? date : element.attr("data-min-date");
+        if (Utils.isValue(o.minDate) && Utils.isDate(o.minDate, o.inputFormat)) {
+            this.min = Utils.isValue(o.inputFormat) ? o.minDate.toDate(o.inputFormat) : (new Date(o.minDate));
+        }
 
         this._drawContent();
     },
@@ -6276,7 +6279,10 @@ var Calendar = {
     setMaxDate: function(date){
         var that = this, element = this.element, o = this.options;
 
-        o.maxDate = date !== null ? date : element.attr("data-max-date");
+        o.maxDate = Utils.isValue(date) ? date : element.attr("data-max-date");
+        if (Utils.isValue(o.maxDate) && Utils.isDate(o.maxDate, o.inputFormat)) {
+            this.max = Utils.isValue(o.inputFormat) ? o.maxDate.toDate(o.inputFormat) : (new Date(o.maxDate));
+        }
 
         this._drawContent();
     },
@@ -9556,8 +9562,8 @@ var DatePicker = {
             }
         }
 
-        this.value.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
-        this.value = this.value.addHours(this.offset);
+        // this.value.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+        // this.value = this.value.addHours(this.offset);
 
         if (Metro.locales[o.locale] === undefined) {
             o.locale = METRO_LOCALE;
@@ -9855,14 +9861,20 @@ var DatePicker = {
         });
     },
 
-    val: function(t){
-        if (t === undefined) {
+    val: function(value){
+        var o = this.options;
+
+        if (!Utils.isValue(value)) {
             return this.element.val();
         }
-        if (Utils.isDate(t) === false) {
-            return false;
+
+        if (Utils.isValue(o.inputFormat)) {
+            this.value = (""+value).toDate(o.inputFormat);
+        } else {
+            this.value = new Date(value);
         }
-        this.value = (new Date(t)).addHours(this.offset);
+
+        // this.value = (new Date(t)).addHours(this.offset);
         this._set();
     },
 
@@ -9884,8 +9896,8 @@ var DatePicker = {
     },
 
     changeAttribute: function(attributeName){
-        switch (attributeName) {
-            case "data-value": this.changeValueAttribute(); break;
+        if (attributeName === "data-value") {
+            this.changeValueAttribute();
         }
     },
 
