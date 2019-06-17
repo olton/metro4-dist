@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.44  (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.45  (https://metroui.org.ua)
  * Copyright 2012-2019 Sergey Pimenov
  * Licensed under MIT
  */
@@ -118,9 +118,9 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.44",
-    compileTime: "03/06/2019 10:32:10",
-    buildNumber: "725",
+    version: "4.2.45",
+    compileTime: "17/06/2019 17:47:17",
+    buildNumber: "726",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -6486,7 +6486,7 @@ var CalendarPicker = {
         if (!Utils.isValue(curr)) {
             //this.value = new Date();
         } else {
-            this.value = Utils.isValue(o.inputFormat) === false ? new Date(curr) : curr.toDate(o.inputFormat);
+            this.value = Utils.isValue(o.inputFormat) === false ? new Date(curr) : curr.toDate(o.inputFormat, o.locale);
         }
 
         if (Utils.isValue(this.value)) this.value.setHours(0,0,0,0);
@@ -15214,6 +15214,8 @@ var NotifyDefaultConfig = {
 
 var Notify = {
 
+    container: null,
+
     options: {
     },
 
@@ -15223,10 +15225,8 @@ var Notify = {
         var body = $("body"), container;
         this.options = $.extend({}, NotifyDefaultConfig, options);
 
-        if (this.options.container === null) {
-            container = $("<div>").addClass("notify-container");
-            body.prepend(container);
-            this.options.container = container;
+        if (Notify.container === null) {
+            Notify.container = Notify._createContainer();
         }
 
         return this;
@@ -15238,9 +15238,17 @@ var Notify = {
             timeout: METRO_TIMEOUT,
             duration: METRO_ANIMATION_DURATION,
             distance: "100vh",
-            animation: "swing"
+            animation: "linear"
         };
         this.options = $.extend({}, NotifyDefaultConfig, reset_options);
+    },
+
+    _createContainer: function(){
+
+        var container = $("<div>").addClass("notify-container");
+        $("body").prepend(container);
+
+        return container;
     },
 
     create: function(message, title, options){
@@ -15288,8 +15296,13 @@ var Notify = {
         });
 
         // Show
-        notify.hide(function(){
-            notify.appendTo(o.container);
+        if (Notify.container === null) {
+            Notify.container = Notify._createContainer();
+        }
+        notify.appendTo(Notify.container);
+
+        notify.hide(0, function(){
+
             Utils.exec(Utils.isValue(options.onAppend) ? options.onAppend : o.onAppend, null, notify[0]);
 
             notify.css({
@@ -15319,9 +15332,10 @@ var Notify = {
     },
 
     kill: function(notify, callback){
+        var that = this, o = this.options;
         notify.off(Metro.events.click);
-        notify.fadeOut('slow', function(){
-            Utils.exec(Utils.isValue(callback) ? callback : this.options.onClose, null, notify[0]);
+        notify.fadeOut(o.duration, function(){
+            Utils.exec(Utils.isValue(callback) ? callback : that.options.onClose, null, notify[0]);
             notify.remove();
         });
     },
@@ -20220,12 +20234,12 @@ var Table = {
                 if (typeof data !== "object") {
                     throw new Error("Data for table is not a object");
                 }
-                that._build(data);
                 Utils.exec(o.onDataLoaded, [o.source, data], element[0]);
                 element.fire("dataloaded", {
                     source: o.source,
                     data: data
-                })
+                });
+                that._build(data);
             }).fail(function( jqXHR, textStatus, errorThrown) {
                 Utils.exec(o.onDataLoadError, [o.source, jqXHR, textStatus, errorThrown], element[0]);
                 element.fire("dataloaderror", {
@@ -21688,15 +21702,14 @@ var Table = {
                 that.heads = [];
                 that.foots = [];
 
-                that._createItemsFromJSON(data);
-
-                that._rebuild(review);
-
                 Utils.exec(o.onDataLoaded, [o.source, data], element[0]);
                 element.fire("dataloaded", {
                     source: o.source,
                     data: data
-                })
+                });
+
+                that._createItemsFromJSON(data);
+                that._rebuild(review);
             }).fail(function( jqXHR, textStatus, errorThrown) {
                 Utils.exec(o.onDataLoadError, [o.source, jqXHR, textStatus, errorThrown], element[0]);
                 element.fire("dataloaderror", {
