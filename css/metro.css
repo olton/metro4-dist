@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.45  (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.46  (https://metroui.org.ua)
  * Copyright 2012-2019 Sergey Pimenov
  * Licensed under MIT
  */
@@ -24520,6 +24520,7 @@ figure img {
   text-overflow: ellipsis;
   width: 100%;
   padding-left: 4px;
+  color: inherit;
 }
 .window-caption .icon {
   width: 34px;
@@ -24529,6 +24530,7 @@ figure img {
       flex-shrink: 0;
   display: block;
   position: relative;
+  color: inherit;
 }
 .window-caption .icon * {
   width: 1rem;
