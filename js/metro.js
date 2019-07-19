@@ -119,8 +119,8 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 var Metro = {
 
     version: "4.2.46",
-    compileTime: "18/07/2019 18:02:25",
-    buildNumber: "727",
+    compileTime: "19/07/2019 18:41:49",
+    buildNumber: "729",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -20697,9 +20697,13 @@ var Table = {
                     classes.push("sort-" + item.sortDir);
                 }
             }
-            if (Utils.isValue(item.cls)) {classes.push(item.cls);}
+            if (Utils.isValue(item.cls)) {
+                $.each(item.cls.toArray(), function () {
+                    classes.push(this);
+                });
+            }
             if (Utils.bool(view[cell_index]['show']) === false) {
-                classes.push("hidden");
+                if (classes.indexOf('hidden') === -1) classes.push("hidden");
             }
 
             classes.push(o.clsHeadCell);
@@ -21179,7 +21183,7 @@ var Table = {
             if (status) {
                 $.each(op, function(){
                     var a;
-                    a = Utils.isValue(that.heads[index][this]) ? Utils.strToArray(that.heads[index][this]) : [];
+                    a = Utils.isValue(that.heads[index][this]) ? Utils.strToArray(that.heads[index][this], " ") : [];
                     Utils.arrayDelete(a, "hidden");
                     that.heads[index][this] = a.join(" ");
                     that.view[index]['show'] = true;
@@ -21188,7 +21192,7 @@ var Table = {
                 $.each(op, function(){
                     var a;
 
-                    a = Utils.isValue(that.heads[index][this]) ? Utils.strToArray(that.heads[index][this]) : [];
+                    a = Utils.isValue(that.heads[index][this]) ? Utils.strToArray(that.heads[index][this], " ") : [];
                     if (a.indexOf("hidden") === -1) {
                         a.push("hidden");
                     }
@@ -26581,6 +26585,7 @@ var Window = {
             left: 0
         };
         this.hidden = false;
+        this.content = null;
 
         this._setOptionsFromDOM();
         this._create();
@@ -26615,12 +26620,23 @@ var Window = {
             o.resizable = false;
         }
 
-        o.content = !Utils.isNull(o.content) ? element.append(o.content) : element;
+        //o.content = !Utils.isNull(o.content) ? element.append(o.content) : element;
 
-        element.attr("data-cls-caption", o.clsCaption);
-        element.attr("data-cls-window", o.clsWindow);
-        element.attr("data-cls-content", o.clsContent);
-        element.attr("data-cls-custom-button", o.clsCustomButton);
+        if (Utils.isNull(o.content)) {
+            o.content = element;
+        } else {
+            if (Utils.isUrl(o.content) && Utils.isVideoUrl(o.content)) {
+                o.content = Utils.embedUrl(o.content);
+            }
+
+            if (!Utils.isQ(o.content) && Utils.isFunc(o.content)) {
+                o.content = Utils.exec(o.content);
+            }
+
+            element.append(o.content);
+            o.content = element;
+            // console.log(o.content);
+        }
 
         if (o._runtime === true) {
             Metro.makeRuntime(element, "window");
@@ -26689,7 +26705,7 @@ var Window = {
     },
 
     _window: function(o){
-        var that = this;
+        var that = this, element = this.element;
         var win, caption, content, icon, title, buttons, btnClose, btnMin, btnMax, resizer, status;
         var width = o.width, height = o.height;
 
@@ -26724,14 +26740,14 @@ var Window = {
 
         if (!Utils.isNull(o.content)) {
 
-            if (Utils.isUrl(o.content) && Utils.isVideoUrl(o.content)) {
-                o.content = Utils.embedUrl(o.content);
-            }
-
-            if (!Utils.isQ(o.content) && Utils.isFunc(o.content)) {
-                o.content = Utils.exec(o.content);
-            }
-
+            // if (Utils.isUrl(o.content) && Utils.isVideoUrl(o.content)) {
+            //     o.content = Utils.embedUrl(o.content);
+            // }
+            //
+            // if (!Utils.isQ(o.content) && Utils.isFunc(o.content)) {
+            //     o.content = Utils.exec(o.content);
+            // }
+            //
             if (Utils.isQ(o.content)) {
                 o.content.appendTo(content);
             } else {
