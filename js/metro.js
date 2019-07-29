@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.46  (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.47  (https://metroui.org.ua)
  * Copyright 2012-2019 Sergey Pimenov
  * Licensed under MIT
  */
@@ -118,9 +118,9 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.46",
-    compileTime: "19/07/2019 18:41:49",
-    buildNumber: "729",
+    version: "4.2.47",
+    compileTime: "29/07/2019 19:33:29",
+    buildNumber: "731",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -4149,8 +4149,8 @@ Metro.accordionSetup = function(options){
     AccordionDefaultConfig = $.extend({}, AccordionDefaultConfig, options);
 };
 
-if (typeof window.metroAccordionSetup !== undefined) {
-    Metro.accordionSetup(window.metroAccordionSetup);
+if (typeof window["metroAccordionSetup"] !== undefined) {
+    Metro.accordionSetup(window["metroAccordionSetup"]);
 }
 
 var Accordion = {
@@ -4307,7 +4307,7 @@ var Accordion = {
         var frames = element.children(".frame");
 
         $.each(frames, function(){
-            $(this).children(".content").hide(0);
+            $(this).children(".content").css("display", "none");
         });
     },
 
@@ -12553,8 +12553,8 @@ Metro.inputSetup = function (options) {
     InputDefaultConfig = $.extend({}, InputDefaultConfig, options);
 };
 
-if (typeof window.metroInputSetup !== undefined) {
-    Metro.inputSetup(window.metroInputSetup);
+if (typeof window["metroInputSetup"] !== undefined) {
+    Metro.inputSetup(window["metroInputSetup"]);
 }
 
 var Input = {
@@ -12642,12 +12642,12 @@ var Input = {
             searchButton.appendTo(buttons);
         }
 
-        if (o.prepend !== "") {
+        if (Utils.isValue(o.prepend)) {
             var prepend = $("<div>").html(o.prepend);
             prepend.addClass("prepend").addClass(o.clsPrepend).appendTo(container);
         }
 
-        if (o.append !== "") {
+        if (Utils.isValue(o.append)) {
             var append = $("<div>").html(o.append);
             append.addClass("append").addClass(o.clsAppend).appendTo(container);
         }
@@ -12724,7 +12724,7 @@ var Input = {
 
         container.on(Metro.events.click, ".input-clear-button", function(){
             var curr = element.val();
-            element.val(Utils.isValue(o.defaultValue) ? o.defaultValue : "").trigger('change').trigger('keyup').focus();
+            element.val(Utils.isValue(o.defaultValue) ? o.defaultValue : "").fire('clear').fire('change').fire('keyup').focus();
             if (autocompleteList.length > 0) {
                 autocompleteList.css({
                     display: "none"
