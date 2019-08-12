@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.2.47  (https://metroui.org.ua)
+ * Metro 4 Components Library v4.2.48  (https://metroui.org.ua)
  * Copyright 2012-2019 Sergey Pimenov
  * Licensed under MIT
  */
@@ -118,9 +118,9 @@ var isTouch = (('ontouchstart' in window) || (navigator.MaxTouchPoints > 0) || (
 
 var Metro = {
 
-    version: "4.2.47",
-    compileTime: "29/07/2019 19:33:29",
-    buildNumber: "731",
+    version: "4.2.48",
+    compileTime: "12/08/2019 20:14:03",
+    buildNumber: "733",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -7058,9 +7058,7 @@ var Carousel = {
             var slide = $(this);
             if (slide.data("cover") !== undefined) {
                 slide.css({
-                    backgroundImage: "url("+slide.data('cover')+")",
-                    backgroundSize: "cover",
-                    backgroundRepeat: "no-repeat"
+                    backgroundImage: "url("+slide.data('cover')+")"
                 });
             }
 
@@ -10968,8 +10966,8 @@ Metro.fileSetup = function (options) {
     FileDefaultConfig = $.extend({}, FileDefaultConfig, options);
 };
 
-if (typeof window.metroFileSetup !== undefined) {
-    Metro.fileSetup(window.metroFileSetup);
+if (typeof window["metroFileSetup"] !== undefined) {
+    Metro.fileSetup(window["metroFileSetup"]);
 }
 
 var File = {
@@ -12629,7 +12627,7 @@ var Input = {
             element.val(o.defaultValue);
         }
 
-        if (o.clearButton === true) {
+        if (o.clearButton === true && !element[0].readOnly) {
             clearButton = $("<button>").addClass("button input-clear-button").addClass(o.clsClearButton).attr("tabindex", -1).attr("type", "button").html(o.clearButtonIcon);
             clearButton.appendTo(buttons);
         }
@@ -12673,6 +12671,10 @@ var Input = {
 
                 customButton.appendTo(buttons);
             });
+        }
+
+        if (Utils.isValue(element.attr('data-exclaim'))) {
+            container.attr('data-exclaim', element.attr('data-exclaim'));
         }
 
         if (element.attr('dir') === 'rtl' ) {
@@ -17119,7 +17121,10 @@ var Select = {
                     if (drop.is(drop_container)) {
                         return ;
                     }
-                    drop.data('dropdown').close();
+                    var dataDrop = drop.data('dropdown');
+                    if (dataDrop && dataDrop.close) {
+                        dataDrop.close();
+                    }
                 });
 
                 filter_input.val("").trigger(Metro.events.keyup).focus();
@@ -17464,7 +17469,8 @@ var Select = {
 $(document).on(Metro.events.click, function(){
     var selects = $(".select .drop-container");
     $.each(selects, function(){
-        $(this).data('dropdown').close();
+        var drop = $(this).data('dropdown');
+        if (drop && drop.close) drop.close();
     });
     $(".select").removeClass("focused");
 });
@@ -22916,8 +22922,8 @@ Metro.textareaSetup = function (options) {
     TextareaDefaultConfig = $.extend({}, TextareaDefaultConfig, options);
 };
 
-if (typeof window.metroTextareaSetup !== undefined) {
-    Metro.textareaSetup(window.metroTextareaSetup);
+if (typeof window["metroTextareaSetup"] !== undefined) {
+    Metro.textareaSetup(window["metroTextareaSetup"]);
 }
 
 var Textarea = {
@@ -22970,7 +22976,7 @@ var Textarea = {
             container.insertAfter(prev);
         }
 
-        if (o.clearButton !== false) {
+        if (o.clearButton !== false && !element[0].readOnly) {
             clearButton = $("<button>").addClass("button input-clear-button").attr("tabindex", -1).attr("type", "button").html(o.clearButtonIcon);
             clearButton.appendTo(container);
         }
