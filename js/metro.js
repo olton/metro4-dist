@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.3.0  (https://metroui.org.ua)
+ * Metro 4 Components Library v4.3.1  (https://metroui.org.ua)
  * Copyright 2012-2019 Sergey Pimenov
  * Licensed under MIT
  */
@@ -543,7 +543,7 @@ function iif(val1, val2, val3){
 
 // Source: src/core.js
 
-var m4qVersion = "v1.0.0. Built at 19/09/2019 10:19:06";
+var m4qVersion = "v1.0.1. Built at 24/09/2019 15:20:29";
 var regexpSingleTag = /^<([a-z][^\/\0>:\x20\t\r\n\f]*)[\x20\t\r\n\f]*\/?>(?:<\/\1>|)$/i;
 
 var matches = Element.prototype.matches
@@ -3415,7 +3415,7 @@ $.init = function(sel, ctx){
         sel = document.doctype;
     }
 
-    if (sel.nodeType || sel.self === window) {
+    if (sel && (sel.nodeType || sel.self === window)) {
         this[0] = sel;
         this.length = 1;
         return this;
@@ -3515,7 +3515,7 @@ var meta_cloak = $.meta('metro4:cloak').attr("content"); //default or fade
 var meta_cloak_duration = $.meta('metro4:cloak_duration').attr("content"); //100
 
 var meta_jquery = $.meta('metro4:jquery').attr("content"); //undefined
-var jquery_present = typeof jQuery !== "undefined";
+window.jquery_present = typeof jQuery !== "undefined";
 if (window.METRO_JQUERY === undefined) {
     window.METRO_JQUERY = meta_jquery !== undefined ? JSON.parse(meta_jquery) : true;
 }
@@ -3595,9 +3595,9 @@ var isTouch = (('ontouchstart' in window) || (navigator["MaxTouchPoints"] > 0) |
 
 var Metro = {
 
-    version: "4.3.0",
-    compileTime: "22/09/2019 21:20:12",
-    buildNumber: "737",
+    version: "4.3.1",
+    compileTime: "25/09/2019 23:11:38",
+    buildNumber: "738",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -3804,7 +3804,7 @@ var Metro = {
 
                         if (mc !== undefined) {
                             $.each(mc, function(){
-                                var plug = element.data(this);
+                                var plug = Metro.getPlugin(element, this);
                                 if (plug) plug.changeAttribute(mutation.attributeName);
                             });
                         }
@@ -3915,7 +3915,7 @@ var Metro = {
 
             roles.map(function (func) {
 
-                var $$ = METRO_JQUERY && jquery_present ? jQuery : $;
+                var $$ = Utils.$();
 
                 if ($$.fn[func] !== undefined && $this.attr("data-role-"+func) === undefined) {
                     try {
@@ -3931,7 +3931,7 @@ var Metro = {
                         }
                         $this.data('metroComponent', mc);
                     } catch (e) {
-                        console.log(e.message + " in " + e.stack);
+                        console.error(e.message + " in " + e.stack);
                         throw e;
                     }
                 }
@@ -4049,6 +4049,14 @@ var Metro = {
             mc.push(role);
         }
         element.data('metroComponent', mc);
+    },
+
+    getPlugin: function(el, type){
+        return Utils.$()($(el)[0]).data(type);
+    },
+
+    makePlugin: function(el, type, options){
+        return Utils.$()($(el)[0])[type](options)
     }
 };
 
@@ -6356,15 +6364,20 @@ var Utils = {
         return typeof context === t ? context : false;
     },
 
+    $: function(){
+        return METRO_JQUERY && jquery_present ? jQuery : m4q;
+    },
+
     isMetroObject: function(el, type){
-        var $el = $(el), el_obj = $el.data(type);
+        var $el = $(el), el_obj = Metro.getPlugin(el, type);
+
         if ($el.length === 0) {
-            console.log(type + ' ' + el + ' not found!');
+            console.warn(type + ' ' + el + ' not found!');
             return false;
         }
 
         if (el_obj === undefined) {
-            console.log('Element not contain role '+ type +'! Please add attribute data-role="'+type+'" to element ' + el);
+            console.warn('Element not contain role '+ type +'! Please add attribute data-role="'+type+'" to element ' + el);
             return false;
         }
 
@@ -6467,6 +6480,7 @@ var Utils = {
         var result;
         if (f === undefined || f === null) {return false;}
         var func = Utils.isFunc(f);
+
         if (func === false) {
             func = Utils.func(f);
         }
@@ -7842,7 +7856,7 @@ var Audio = {
 
         this.preloader = preloader;
 
-        streamSlider.slider({
+        Metro.makePlugin(streamSlider, "slider", {
             clsMarker: "bg-red",
             clsHint: "bg-cyan fg-white",
             clsComplete: "bg-cyan",
@@ -7866,7 +7880,7 @@ var Audio = {
             stream.hide();
         }
 
-        volumeSlider.slider({
+        Metro.makePlugin(volumeSlider, "slider", {
             clsMarker: "bg-red",
             clsHint: "bg-cyan fg-white",
             hint: true,
@@ -7898,7 +7912,7 @@ var Audio = {
 
         if (o.muted) {
             that.volumeBackup = audio.volume;
-            that.volume.data('slider').val(0);
+            Metro.getPlugin(that.volume, 'slider').val(0);
             audio.volume = 0;
         }
 
@@ -7930,7 +7944,7 @@ var Audio = {
         element.on("timeupdate", function(){
             var position = Math.round(audio.currentTime * 100 / that.duration);
             that._setInfo(audio.currentTime, that.duration);
-            that.stream.data('slider').val(position);
+            Metro.getPlugin(that.stream, 'slider').val(position);
             Utils.exec(o.onTime, [audio.currentTime, that.duration, audio, player], element[0]);
         });
 
@@ -7953,12 +7967,12 @@ var Audio = {
         });
 
         element.on("stop", function(){
-            that.stream.data('slider').val(0);
+            Metro.getPlugin(that.stream, 'slider').val(0);
             Utils.exec(o.onStop, [audio, player], element[0]);
         });
 
         element.on("ended", function(){
-            that.stream.data('slider').val(0);
+            Metro.getPlugin(that.stream, 'slider').val(0);
             Utils.exec(o.onEnd, [audio, player], element[0]);
         });
 
@@ -8002,12 +8016,11 @@ var Audio = {
         this.muted = !this.muted;
         if (this.muted === false) {
             this.audio.volume = this.volumeBackup;
-            this.volume.data('slider').val(this.volumeBackup * 100);
         } else {
             this.volumeBackup = this.audio.volume;
-            this.volume.data('slider').val(0);
             this.audio.volume = 0;
         }
+        Metro.getPlugin(this.volume, 'slider').val(this.muted === false ? this.volumeBackup * 100 : 0);
     },
 
     _setInfo: function(a, b){
@@ -8016,7 +8029,7 @@ var Audio = {
 
     _setBuffer: function(){
         var buffer = this.audio.buffered.length ? Math.round(Math.floor(this.audio.buffered.end(0)) / Math.floor(this.audio.duration) * 100) : 0;
-        this.stream.data('slider').buff(buffer);
+        Metro.getPlugin(this.stream, 'slider').buff(buffer);
     },
 
     _setVolume: function(){
@@ -8060,7 +8073,7 @@ var Audio = {
     stop: function(){
         this.audio.pause();
         this.audio.currentTime = 0;
-        this.stream.data('slider').val(0);
+        Metro.getPlugin(this.stream, 'slider').val(0);
     },
 
     volume: function(v){
@@ -8073,7 +8086,7 @@ var Audio = {
         }
 
         this.audio.volume = v;
-        this.volume.data('slider').val(v*100);
+        Metro.getPlugin(this.volume, 'slider').val(v*100);
     },
 
     loop: function(){
@@ -8107,8 +8120,8 @@ var Audio = {
         element.off("all");
         player.off("all");
 
-        this.stream.data("slider").destroy();
-        this.volume.data("slider").destroy();
+        Metro.getPlugin(this.stream[0], "slider").destroy();
+        Metro.getPlugin(this.volume[0], "slider").destroy();
 
         return element;
     }
@@ -8256,16 +8269,14 @@ Metro['bottomsheet'] = {
         if (!this.isBottomSheet(el)) {
             return false;
         }
-        var sheet = $(el).data("bottomsheet");
-        sheet.open(as);
+        Metro.getPlugin($(el)[0], "bottomsheet").open(as);
     },
 
     close: function(el){
         if (!this.isBottomSheet(el)) {
             return false;
         }
-        var sheet = $(el).data("bottomsheet");
-        sheet.close();
+        Metro.getPlugin($(el)[0], "bottomsheet").close();
     },
 
     toggle: function(el, as){
@@ -8283,8 +8294,7 @@ Metro['bottomsheet'] = {
         if (!this.isBottomSheet(el)) {
             return false;
         }
-        var sheet = $(el).data("bottomsheet");
-        return sheet.isOpen();
+        return Metro.getPlugin($(el)[0], "bottomsheet").isOpen();
     }
 };
 
@@ -9516,7 +9526,7 @@ var CalendarPicker = {
         buttons.appendTo(container);
         cal.appendTo(container);
 
-        cal.calendar({
+        Metro.makePlugin(cal, "calendar", {
             wide: o.calendarWide,
             widePoint: o.calendarWidePoint,
 
@@ -9644,7 +9654,7 @@ var CalendarPicker = {
         var container = element.parent();
         var clear = container.find(".input-clear-button");
         var cal = this.calendar;
-        var cal_plugin = cal.data('calendar');
+        var cal_plugin = Metro.getPlugin(cal[0], 'calendar');
 
         $(window).on(Metro.events.resize, function(){
             if (o.dialogMode !== true) {
@@ -9708,6 +9718,11 @@ var CalendarPicker = {
         element.on(Metro.events.change, function(){
             Utils.exec(o.onChange, [that.value], element[0]);
         });
+
+        container.on(Metro.events.click, function(e){
+            e.preventDefault();
+            e.stopPropagation();
+        })
     },
 
     _overlay: function(){
@@ -9739,7 +9754,7 @@ var CalendarPicker = {
         }
 
         if (Utils.isDate(v, o.inputFormat) === true) {
-            this.calendar.data("calendar").clearSelected();
+            Metro.getPlugin(this.calendar[0],"calendar").clearSelected();
             this.value = typeof v === 'string' ? v.toDate(o.inputFormat, o.locale) : v;
             element.val(this.value.format(o.format));
             element.trigger("change");
@@ -9782,7 +9797,7 @@ var CalendarPicker = {
                 display: "block"
             });
         }
-        cal.data('calendar').i18n(val);
+        Metro.getPlugin(cal[0], 'calendar').i18n(val);
         if (hidden) {
             cal.css({
                 visibility: "visible",
@@ -9793,7 +9808,7 @@ var CalendarPicker = {
 
     changeAttribute: function(attributeName){
         var that = this, element = this.element;
-        var cal = this.calendar.data("calendar");
+        var cal = Metro.getPlugin(this.calendar[0], "calendar");
 
         var changeAttrLocale = function(){
             that.i18n(element.attr("data-locale"));
@@ -9842,7 +9857,7 @@ var CalendarPicker = {
         element.off(Metro.events.focus);
         element.off(Metro.events.change);
 
-        this.calendar.data("calendar").destroy();
+        Metro.getPlugin(this.calendar[0], "calendar").destroy();
 
         return element;
     }
@@ -10539,7 +10554,7 @@ Metro['charms'] = {
 
     check: function(el){
         if (Utils.isMetroObject(el, "charms") === false) {
-            console.log("Element is not a charms component");
+            console.warn("Element is not a charms component");
             return false;
         }
         return true;
@@ -10547,44 +10562,33 @@ Metro['charms'] = {
 
     isOpen: function(el){
         if (this.check(el) === false) return ;
-
-        var charms = $(el).data("charms");
-
-        return charms.hasClass("open");
+        return $(el).hasClass("open");
     },
 
     open: function(el){
         if (this.check(el) === false) return ;
-
-        var charms = $(el).data("charms");
-        charms.open();
+        Metro.getPlugin($(el)[0], "charms").open();
     },
 
     close: function(el){
         if (this.check(el) === false) return ;
-
-        var charms = $(el).data("charms");
-        charms.close();
+        Metro.getPlugin($(el)[0], "charms").close();
     },
 
     toggle: function(el){
         if (this.check(el) === false) return ;
-
-        var charms = $(el).data("charms");
-        charms.toggle();
+        Metro.getPlugin($(el)[0], "charms").toggle();
     },
 
     closeAll: function(){
         $('[data-role*=charms]').each(function() {
-            $(this).data('charms').close();
+            Metro.getPlugin(this, 'charms').close();
         });
     },
 
     opacity: function(el, opacity){
         if (this.check(el) === false) return ;
-
-        var charms = $(el).data("charms");
-        charms.opacity(opacity);
+        Metro.getPlugin($(el)[0], "charms").opacity(opacity);
     }
 };
 
@@ -10994,8 +10998,11 @@ var Checkbox = {
         element.fire("checkboxcreate");
     },
 
-    indeterminate: function(){
-        this.element[0].indeterminate = true;
+    indeterminate: function(v){
+        if (Utils.isNull(v)) {
+            v = true;
+        }
+        this.element[0].indeterminate = v;
     },
 
     disable: function(){
@@ -11017,7 +11024,7 @@ var Checkbox = {
     },
 
     changeAttribute: function(attributeName){
-        var element = this.element, o = this.options;
+        var that = this, element = this.element, o = this.options;
         var parent = element.parent();
 
         var changeStyle = function(){
@@ -11260,7 +11267,7 @@ var Collapse = {
 
     _close: function(el, immediate){
         var elem = $(el);
-        var dropdown  = elem.data("collapse");
+        var dropdown  = Metro.getPlugin(elem[0], "collapse");
         var options = dropdown.options;
         var func = immediate ? 'show' : 'slideUp';
         var dur = immediate ? 0 : options.duration;
@@ -11278,7 +11285,7 @@ var Collapse = {
 
     _open: function(el, immediate){
         var elem = $(el);
-        var dropdown  = elem.data("collapse");
+        var dropdown  = Metro.getPlugin(elem[0], "collapse");
         var options = dropdown.options;
         var func = immediate ? 'show' : 'slideDown';
         var dur = immediate ? 0 : options.duration;
@@ -12960,7 +12967,9 @@ Metro.plugin('datepicker', DatePicker);
 
 $(document).on(Metro.events.click, function(){
     $.each($(".date-picker"), function(){
-        $(this).find("input").data("datepicker").close();
+        $(this).find("input").each(function(){
+            Metro.getPlugin(this, "datepicker").close();
+        });
     });
 });
 
@@ -13322,7 +13331,7 @@ Metro['dialog'] = {
         if (!this.isDialog(el)) {
             return false;
         }
-        var dialog = $(el).data("dialog");
+        var dialog = Metro.getPlugin(el, "dialog");
         if (title !== undefined) {
             dialog.setTitle(title);
         }
@@ -13336,31 +13345,28 @@ Metro['dialog'] = {
         if (!this.isDialog(el)) {
             return false;
         }
-        var dialog = $(el).data("dialog");
-        dialog.close();
+        Metro.getPlugin($(el)[0], "dialog").close();
     },
 
     toggle: function(el){
         if (!this.isDialog(el)) {
             return false;
         }
-        var dialog = $(el).data("dialog");
-        dialog.toggle();
+        Metro.getPlugin($(el)[0], "dialog").toggle();
     },
 
     isOpen: function(el){
         if (!this.isDialog(el)) {
             return false;
         }
-        var dialog = $(el).data("dialog");
-        return dialog.isOpen();
+        Metro.getPlugin($(el)[0], "dialog").isOpen();
     },
 
     remove: function(el){
         if (!this.isDialog(el)) {
             return false;
         }
-        var dialog = $(el).data("dialog");
+        var dialog = Metro.getPlugin($(el)[0], "dialog");
         dialog.options.removeOnClose = true;
         dialog.close();
     },
@@ -13613,6 +13619,8 @@ var Draggable = {
         var dragElement  = o.dragElement !== 'self' ? element.find(o.dragElement) : element;
 
         Metro.checkRuntime(element, "draggable");
+
+        element.data("canDrag", true);
 
         this.dragElement = dragElement;
 
@@ -13886,10 +13894,9 @@ var Dropdown = {
     },
 
     _close: function(el, immediate){
-
         el = $(el);
 
-        var dropdown  = el.data("dropdown");
+        var dropdown  = Metro.getPlugin(el, "dropdown");
         var toggle = dropdown._toggle;
         var options = dropdown.options;
         var func = "slideUp";
@@ -13912,7 +13919,7 @@ var Dropdown = {
     _open: function(el, immediate){
         el = $(el);
 
-        var dropdown  = el.data("dropdown");
+        var dropdown  = Metro.getPlugin(el, "dropdown");
         var toggle = dropdown._toggle;
         var options = dropdown.options;
         var func = "slideDown";
@@ -13953,7 +13960,7 @@ $(document).on(Metro.events.click, function(){
         var el = $(this);
 
         if (el.css('display')!=='none' && !el.hasClass('keep-open') && !el.hasClass('stay-open') && !el.hasClass('ignore-document-click')) {
-            el.data('dropdown').close();
+            Metro.getPlugin(el, 'dropdown').close();
         }
     });
 });
@@ -14518,6 +14525,18 @@ $.fn.hotkey = function(key, fn){
         })
     })
 };
+
+if (METRO_JQUERY && jquery_present) {
+    jQuery.fn.hotkey = function(key, fn){
+        return this.each(function(){
+            $(this).on(Metro.events.keyup+".hotkey-method-"+key, function(e){
+                var _key = Hotkey.getKey(e);
+                if (key === _key) Utils.exec(fn, [e, _key, key], this);
+            })
+        })
+    };
+}
+
 
 $(document).on(Metro.events.keyup + ".hotkey-data", function(e){
     var el, fn, key;
@@ -15391,14 +15410,15 @@ Metro.plugin('infobox', InfoBox);
 
 Metro['infobox'] = {
     isInfoBox: function(el){
-        return Utils.isMetroObject(el, "dialog");
+        return Utils.isMetroObject(el, "infobox");
     },
 
     open: function(el, c, t){
+        var $$ = Utils.$();
         if (!this.isInfoBox(el)) {
             return false;
         }
-        var ib = $(el).data("infobox");
+        var ib = $$(el).data("infobox");
         if (c !== undefined) {
             ib.setContent(c);
         }
@@ -15409,14 +15429,16 @@ Metro['infobox'] = {
     },
 
     close: function(el){
+        var $$ = Utils.$();
         if (!this.isInfoBox(el)) {
             return false;
         }
-        var ib = $(el).data("infobox");
+        var ib = $$(el).data("infobox");
         ib.close();
     },
 
     setContent: function(el, c){
+        var $$ = Utils.$();
         if (!this.isInfoBox(el)) {
             return false;
         }
@@ -15425,26 +15447,28 @@ Metro['infobox'] = {
             c = "";
         }
 
-        var ib = $(el).data("infobox");
+        var ib = $$(el).data("infobox");
         ib.setContent(c);
         ib.reposition();
     },
 
     setType: function(el, t){
+        var $$ = Utils.$();
         if (!this.isInfoBox(el)) {
             return false;
         }
 
-        var ib = $(el).data("infobox");
+        var ib = $$(el).data("infobox");
         ib.setType(t);
         ib.reposition();
     },
 
     isOpen: function(el){
+        var $$ = Utils.$();
         if (!this.isInfoBox(el)) {
             return false;
         }
-        var ib = $(el).data("infobox");
+        var ib = $$(el).data("infobox");
         return ib.isOpen();
     },
 
@@ -17647,7 +17671,7 @@ var ListView = {
         var cb = $("<input type='checkbox'>");
         cb.data("node", new_node);
         new_node.prepend(cb);
-        cb.checkbox();
+        Metro.makePlugin(cb, "checkbox", {});
 
         Utils.exec(o.onNodeInsert, [new_node, node, target], element[0]);
         element.fire("nodeinsert", {
@@ -18783,7 +18807,7 @@ var Panel = {
         } else if (typeof buttons === "object" && Utils.objectLength(buttons) > 0) {
             customButtons = buttons;
         } else {
-            console.log("Unknown format for custom buttons", buttons);
+            console.warn("Unknown format for custom buttons", buttons);
             return ;
         }
 
@@ -18856,7 +18880,7 @@ var Panel = {
 
             if (o.collapsible === true) {
                 var collapseToggle = $("<span>").addClass("dropdown-toggle marker-center active-toggle").addClass(o.clsCollapseToggle).appendTo(title);
-                element.collapse({
+                Metro.makePlugin(element, "collapse", {
                     toggleElement: collapseToggle,
                     duration: o.collapseDuration,
                     onCollapse: o.onCollapse,
@@ -18884,7 +18908,7 @@ var Panel = {
                 dragElement = panel;
             }
 
-            panel.draggable({
+            Metro.makePlugin(panel, "draggable", {
                 dragElement: dragElement,
                 onDragStart: o.onDragStart,
                 onDragStop: o.onDragStop,
@@ -18916,7 +18940,7 @@ var Panel = {
         if (Utils.isMetroObject(element, 'collapse') === false) {
             return ;
         }
-        element.data('collapse').collapse();
+        Metro.getPlugin(element, 'collapse').collapse();
     },
 
     expand: function(){
@@ -18924,7 +18948,7 @@ var Panel = {
         if (Utils.isMetroObject(element, 'collapse') === false) {
             return ;
         }
-        element.data('collapse').expand();
+        Metro.getPlugin(element, 'collapse').expand();
     },
 
     changeAttribute: function(attributeName){
@@ -18934,11 +18958,11 @@ var Panel = {
         var element = this.element;
 
         if (o.collapsible === true) {
-            element.data("collapse").destroy();
+            Metro.getPlugin(element, "collapse").destroy();
         }
 
         if (o.draggable === true) {
-            element.data("draggable").destroy();
+            Metro.getPlugin(element, "draggable").destroy();
         }
 
         return element;
@@ -19921,6 +19945,9 @@ var Resizable = {
     _createStructure: function(){
         var element = this.element, o = this.options;
 
+        element.data("canResize", true);
+        element.addClass("resizeable-element");
+
         if (Utils.isValue(o.resizeElement) && element.find(o.resizeElement).length > 0) {
             this.resizer = element.find(o.resizeElement);
         } else {
@@ -19943,6 +19970,8 @@ var Resizable = {
             var startWidth = parseInt(element.outerWidth());
             var startHeight = parseInt(element.outerHeight());
             var size = {width: startWidth, height: startHeight};
+
+            element.addClass("stop-select stop-pointer");
 
             Utils.exec(o.onResizeStart, [size], element[0]);
             element.fire("resizestart", {
@@ -19971,6 +20000,8 @@ var Resizable = {
             }, {ns: that.id});
 
             $(document).on(Metro.events.stop, function(){
+                element.removeClass("stop-select stop-pointer");
+
                 $(document).off(Metro.events.move, {ns: that.id});
                 $(document).off(Metro.events.stop, {ns: that.id});
 
@@ -20375,6 +20406,10 @@ var Select = {
 
         l.addClass(item.className);
 
+        if (option.is(":disabled")) {
+            l.addClass("disabled");
+        }
+
         if (option.is(":selected")) {
             if (multiple) {
                 l.addClass("d-none");
@@ -20470,7 +20505,7 @@ var Select = {
 
         this._setPlaceholder();
 
-        drop_container.dropdown({
+        Metro.makePlugin(drop_container, "dropdown", {
             dropFilter: ".select",
             duration: o.duration,
             toggleElement: "#"+select_id,
@@ -20601,7 +20636,7 @@ var Select = {
                 list.find("li.active").removeClass("active").removeClass(o.clsOptionActive);
                 leaf.addClass("active").addClass(o.clsOptionActive);
                 input.html(html);
-                drop_container.data("dropdown").close();
+                Metro.getPlugin(drop_container[0], "dropdown").close();
             }
 
             $.each(options, function(){
@@ -20844,9 +20879,10 @@ var Select = {
 };
 
 $(document).on(Metro.events.click, function(){
+    var $$ = Utils.$();
     var selects = $(".select .drop-container");
     $.each(selects, function(){
-        var drop = $(this).data('dropdown');
+        var drop = $$(this).data('dropdown');
         if (drop && drop.close) drop.close();
     });
     $(".select").removeClass("focused");
@@ -21106,28 +21142,28 @@ Metro['sidebar'] = {
         if (!this.isSidebar(el)) {
             return ;
         }
-        $(el).data("sidebar").open();
+        Metro.getPlugin($(el)[0], "sidebar").open();
     },
 
     close: function(el){
         if (!this.isSidebar(el)) {
             return ;
         }
-        $(el).data("sidebar").close();
+        Metro.getPlugin($(el)[0], "sidebar").close();
     },
 
     toggle: function(el){
         if (!this.isSidebar(el)) {
             return ;
         }
-        $(el).data("sidebar").toggle();
+        Metro.getPlugin($(el)[0], "sidebar").toggle();
     },
 
     isOpen: function(el){
         if (!this.isSidebar(el)) {
             return ;
         }
-        return $(el).data("sidebar").isOpen();
+        return Metro.getPlugin($(el)[0], "sidebar").isOpen();
     }
 };
 
@@ -21948,7 +21984,7 @@ Metro.plugin('sorter', Sorter);
 
 Metro['sorter'] = {
     create: function(el, op){
-        return $(el).sorter(op);
+        return Utils.$()(el).sorter(op);
     },
 
     isSorter: function(el){
@@ -21959,19 +21995,17 @@ Metro['sorter'] = {
         if (!this.isSorter(el)) {
             return false;
         }
-        var sorter = $(el).data("sorter");
         if (dir === undefined) {
             dir = "asc";
         }
-        sorter.sort(dir);
+        Metro.getPlugin($(el)[0], "sorter").sort(dir);
     },
 
     reset: function(el){
         if (!this.isSorter(el)) {
             return false;
         }
-        var sorter = $(el).data("sorter");
-        sorter.reset();
+        Metro.getPlugin($(el)[0], "sorter").reset();
     }
 };
 
@@ -27502,7 +27536,9 @@ Metro.plugin('timepicker', TimePicker);
 
 $(document).on(Metro.events.click, function(){
     $.each($(".time-picker"), function(){
-        $(this).find("input").data("timepicker").close();
+        $(this).find("input").each(function(){
+            Metro.getPlugin(this, "timepicker").close();
+        });
     });
 });
 
@@ -28837,7 +28873,6 @@ var TreeView = {
 
         $.each(nodes, function(){
             var node = $(this);
-            var childCount = 0;
             var caption, icon;
 
             caption = node.data("caption");
@@ -28945,7 +28980,7 @@ var TreeView = {
 
     _recheck: function(check){
         var element = this.element;
-        var checked, node, checks;
+        var checked, node, checks, all_checks;
 
         check = $(check);
 
@@ -28959,13 +28994,13 @@ var TreeView = {
         checks.attr("data-indeterminate", false);
         checks.prop("checked", checked);
 
-        checks = [];
+        all_checks = [];
 
         $.each(element.find("input[type=checkbox]"), function(){
-            checks.push(this);
+            all_checks.push(this);
         });
 
-        $.each(checks.reverse(), function(){
+        $.each(all_checks.reverse(), function(){
             var ch = $(this);
             var children = ch.closest("li").children("ul").find("input[type=checkbox]").length;
             var children_checked = ch.closest("li").children("ul").find("input[type=checkbox]").filter(function(el){
@@ -29795,7 +29830,7 @@ var Video = {
             infoBox.hide();
         }
 
-        streamSlider.slider({
+        Metro.makePlugin(streamSlider, "slider", {
             clsMarker: "bg-red",
             clsHint: "bg-cyan fg-white",
             clsComplete: "bg-cyan",
@@ -29819,7 +29854,7 @@ var Video = {
             stream.hide();
         }
 
-        volumeSlider.slider({
+        Metro.makePlugin(volumeSlider, "slider", {
             clsMarker: "bg-red",
             clsHint: "bg-cyan fg-white",
             hint: true,
@@ -29852,7 +29887,7 @@ var Video = {
 
         if (o.muted) {
             that.volumeBackup = video.volume;
-            that.volume.data('slider').val(0);
+            Metro.getPlugin(that.volume[0], 'slider').val(0);
             video.volume = 0;
         }
 
@@ -29884,7 +29919,7 @@ var Video = {
         element.on("timeupdate", function(){
             var position = Math.round(video.currentTime * 100 / that.duration);
             that._setInfo(video.currentTime, that.duration);
-            that.stream.data('slider').val(position);
+            Metro.getPlugin(that.stream[0], 'slider').val(position);
             Utils.exec(o.onTime, [video.currentTime, that.duration, video, player], element[0]);
         });
 
@@ -29909,13 +29944,13 @@ var Video = {
         });
 
         element.on("stop", function(){
-            that.stream.data('slider').val(0);
+            Metro.getPlugin(that.stream[0], 'slider').val(0);
             Utils.exec(o.onStop, [video, player], element[0]);
             that._offMouse();
         });
 
         element.on("ended", function(){
-            that.stream.data('slider').val(0);
+            Metro.getPlugin(that.stream[0], 'slider').val(0);
             Utils.exec(o.onEnd, [video, player], element[0]);
             that._offMouse();
         });
@@ -30046,12 +30081,11 @@ var Video = {
         this.muted = !this.muted;
         if (this.muted === false) {
             this.video.volume = this.volumeBackup;
-            this.volume.data('slider').val(this.volumeBackup * 100);
         } else {
             this.volumeBackup = this.video.volume;
-            this.volume.data('slider').val(0);
             this.video.volume = 0;
         }
+        Metro.getPlugin(this.volume, 'slider').val(this.muted === false ? this.volumeBackup * 100 : 0);
     },
 
     _setInfo: function(a, b){
@@ -30060,7 +30094,7 @@ var Video = {
 
     _setBuffer: function(){
         var buffer = this.video.buffered.length ? Math.round(Math.floor(this.video.buffered.end(0)) / Math.floor(this.video.duration) * 100) : 0;
-        this.stream.data('slider').buff(buffer);
+        Metro.getPlugin(this.stream, 'slider').buff(buffer);
     },
 
     _setVolume: function(){
@@ -30127,7 +30161,7 @@ var Video = {
         this.isPlaying = false;
         this.video.pause();
         this.video.currentTime = 0;
-        this.stream.data('slider').val(0);
+        Metro.getPlugin(this.stream[0], 'slider').val(0);
         this._offMouse();
     },
 
@@ -30141,7 +30175,7 @@ var Video = {
         }
 
         this.video.volume = v;
-        this.volume.data('slider').val(v*100);
+        Metro.getPlugin(this.volume[0], 'slider').val(v*100);
     },
 
     loop: function(){
@@ -30178,8 +30212,8 @@ var Video = {
     destroy: function(){
         var element = this.element, player = this.player;
 
-        this.stream.data("slider").destroy();
-        this.volume.data("slider").destroy();
+        Metro.getPlugin(this.stream[0], "slider").destroy();
+        Metro.getPlugin(this.volume[0], "slider").destroy();
 
         element.off("loadstart");
         element.off("loadedmetadata");
@@ -30531,7 +30565,7 @@ var Window = {
         });
 
         if (o.draggable === true) {
-            win.draggable({
+            Metro.makePlugin(win, "draggable", {
                 dragElement: o.dragElement,
                 dragArea: o.dragArea,
                 onDragStart: o.onDragStart,
@@ -30566,7 +30600,7 @@ var Window = {
             resizer.appendTo(win);
             win.addClass("resizable");
 
-            win.resizable({
+            Metro.makePlugin(win, "resizable", {
                 minWidth: o.minWidth,
                 minHeight: o.minHeight,
                 maxWidth: o.maxWidth,
@@ -30812,7 +30846,7 @@ var Window = {
     toggleDraggable: function(){
         var element = this.element, win = this.win;
         var flag = JSON.parse(element.attr("data-draggable"));
-        var drag = win.data("draggable");
+        var drag = Metro.getPlugin(win, "draggable");
         if (flag === true) {
             drag.on();
         } else {
@@ -30823,7 +30857,7 @@ var Window = {
     toggleResizable: function(){
         var element = this.element, win = this.win;
         var flag = JSON.parse(element.attr("data-resizable"));
-        var resize = win.data("resizable");
+        var resize = Metro.getPlugin(win, "resizable");
         if (flag === true) {
             resize.on();
             win.find(".resize-element").removeClass("resize-element-disabled");
@@ -30899,47 +30933,42 @@ Metro['window'] = {
         if (!this.isWindow(el)) {
             return false;
         }
-        var win = $(el).data("window");
-        win.min(a);
+        Metro.getPlugin(el,"window").min(a);
     },
 
     max: function(el, a){
         if (!this.isWindow(el)) {
             return false;
         }
-        var win = $(el).data("window");
-        win.max(a);
+        Metro.getPlugin(el, "window").max(a);
     },
 
     show: function(el){
         if (!this.isWindow(el)) {
             return false;
         }
-        var win = $(el).data("window");
-        win.show();
+        Metro.getPlugin(el, "window").show();
     },
 
     hide: function(el){
         if (!this.isWindow(el)) {
             return false;
         }
-        var win = $(el).data("window");
-        win.hide();
+        Metro.getPlugin(el, "window").hide();
     },
 
     toggle: function(el){
         if (!this.isWindow(el)) {
             return false;
         }
-        var win = $(el).data("window");
-        win.toggle();
+        Metro.getPlugin(el, "window").toggle();
     },
 
     isOpen: function(el){
         if (!this.isWindow(el)) {
             return false;
         }
-        var win = $(el).data("window");
+        var win = Metro.getPlugin(el,"window");
         return win.isOpen();
     },
 
@@ -30947,8 +30976,7 @@ Metro['window'] = {
         if (!this.isWindow(el)) {
             return false;
         }
-        var win = $(el).data("window");
-        win.close();
+        Metro.getPlugin(el, "window").close();
     },
 
     create: function(options){
