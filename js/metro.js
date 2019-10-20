@@ -1,5 +1,5 @@
 /*
- * Metro 4 Components Library v4.3.1  (https://metroui.org.ua)
+ * Metro 4 Components Library v4.3.2  (https://metroui.org.ua)
  * Copyright 2012-2019 Sergey Pimenov
  * Licensed under MIT
  */
@@ -422,7 +422,7 @@ function iif(val1, val2, val3){
         if (typeof resolver !== 'function')
             throw new TypeError('Promise constructor takes a function argument');
 
-        if (this instanceof Promise === false)
+        if (!this instanceof Promise)
             throw new TypeError('Failed to construct \'Promise\': Please use the \'new\' operator, this object constructor cannot be called as a function.');
 
         this.then_ = [];
@@ -457,6 +457,10 @@ function iif(val1, val2, val3){
             }
 
             return subscriber.then;
+        },
+
+        done: function(onFulfillment){
+            return this.then(onFulfillment, null);
         },
 
         'catch': function(onRejection) {
@@ -543,15 +547,15 @@ function iif(val1, val2, val3){
 
 // Source: src/core.js
 
-var m4qVersion = "v1.0.1. Built at 24/09/2019 15:20:29";
+var m4qVersion = "v1.0.2. Built at 20/10/2019 17:44:04";
 var regexpSingleTag = /^<([a-z][^\/\0>:\x20\t\r\n\f]*)[\x20\t\r\n\f]*\/?>(?:<\/\1>|)$/i;
 
 var matches = Element.prototype.matches
-    || Element.prototype.matchesSelector
-    || Element.prototype.webkitMatchesSelector
-    || Element.prototype.mozMatchesSelector
-    || Element.prototype.msMatchesSelector
-    || Element.prototype.oMatchesSelector;
+    || Element.prototype["matchesSelector"]
+    || Element.prototype["webkitMatchesSelector"]
+    || Element.prototype["mozMatchesSelector"]
+    || Element.prototype["msMatchesSelector"]
+    || Element.prototype["oMatchesSelector"];
 
 var $ = function(selector, context){
     return new $.init(selector, context);
@@ -1669,7 +1673,7 @@ $.fn.extend({
                 };
 
                 Object.defineProperty(h, "name", {
-                    value: handler.name.trim() !== "" ? handler.name : "func_event_"+name+"_"+$.eventUID
+                    value: handler.name && handler.name !== "" ? handler.name : "func_event_"+name+"_"+$.eventUID
                 });
 
                 originEvent = name+(sel ? ":"+sel:"")+(ns ? ":"+ns:"");
@@ -1871,7 +1875,7 @@ $.ajax = function(p){
         }
 
         if (p.headers) {
-            $.each(function(k, v){
+            $.each(p.headers, function(k, v){
                 xhr.setRequestHeader(k, v);
                 headers.push(k);
             });
@@ -2482,6 +2486,7 @@ $.extend({
 
 // Source: src/manipulation.js
 
+// TODO optimise promises append, prepend to one definition
 (function (arr) {
     arr.forEach(function (item) {
         if (item.hasOwnProperty('append')) {
@@ -2687,7 +2692,7 @@ $.fn.extend({
 
 // Source: src/animation.js
 
-var cancelAnimationFrame = window.cancelAnimationFrame || window.webkitCancelAnimationFrame || window.mozCancelAnimationFrame;
+var cancelAnimationFrame = window.cancelAnimationFrame || window.webkitCancelAnimationFrame || window["mozCancelAnimationFrame"];
 
 var Easing = {
 
@@ -3503,6 +3508,7 @@ if (!'MutationObserver' in window) {
 }
 
 var meta_init = $.meta('metro4:init').attr("content");
+var meta_init_mode = $.meta('metro4:init:mode').attr("content");
 var meta_locale = $.meta('metro4:locale').attr("content");
 var meta_week_start = $.meta('metro4:week_start').attr("content");
 var meta_date_format = $.meta('metro4:date_format').attr("content");
@@ -3535,6 +3541,11 @@ if (window.METRO_SHOW_COMPILE_TIME === undefined) {
 if (window.METRO_INIT === undefined) {
     window.METRO_INIT = meta_init !== undefined ? JSON.parse(meta_init) : true;
 }
+
+if (window.METRO_INIT_MODE === undefined) {
+    window.METRO_INIT_MODE = meta_init_mode !== undefined ? meta_init_mode : "immediate";
+}
+
 if (window.METRO_DEBUG === undefined) {window.METRO_DEBUG = true;}
 
 if (window.METRO_WEEK_START === undefined) {
@@ -3595,9 +3606,9 @@ var isTouch = (('ontouchstart' in window) || (navigator["MaxTouchPoints"] > 0) |
 
 var Metro = {
 
-    version: "4.3.1",
-    compileTime: "25/09/2019 23:11:38",
-    buildNumber: "738",
+    version: "4.3.2",
+    compileTime: "20/10/2019 17:53:59",
+    buildNumber: "739",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -3858,7 +3869,6 @@ var Metro = {
 
         Metro.sheet = Utils.newCssSheet();
 
-
         window.METRO_MEDIA = [];
         $.each(Metro.media_queries, function(key, query){
             if (Utils.media(query)) {
@@ -3882,8 +3892,6 @@ var Metro = {
                 $(".m4-cloak").removeClass("m4-cloak");
             })
         }
-
-        return Metro;
     },
 
     initHotkeys: function(hotkeys, redefine){
@@ -3946,7 +3954,7 @@ var Metro = {
             });
         };
 
-        if (METRO_JQUERY && typeof jQuery !== 'undefined') {
+        if (METRO_JQUERY && jquery_present) {
             jQuery.fn[name] = function (options) {
                 return this.each(function () {
                     jQuery.data(this, name, Object.create(object).init(options, this));
@@ -4070,7 +4078,6 @@ $(window).on(Metro.events.resize, function(){
         }
     });
 });
-
 
 
 var Animation = {
@@ -9941,7 +9948,7 @@ var Carousel = {
         this.current = null;
         this.currentIndex = null;
         this.dir = this.options.direction;
-        this.interval = null;
+        this.interval = false;
         this.isAnimate = false;
 
         this._setOptionsFromDOM();
@@ -10031,7 +10038,7 @@ var Carousel = {
             return ;
         }
 
-        this.interval = setTimeout(function run() {
+        if (this.interval === false) this.interval = setTimeout(function run() {
             var t = o.direction === 'left' ? 'next' : 'prior';
             that._slideTo(t, true);
         }, period);
@@ -10303,8 +10310,8 @@ var Carousel = {
             duration = 0;
         }
 
-        current.stop(true, true);
-        next.stop(true, true);
+        current.stop(true);
+        next.stop(true);
         this.isAnimate = true;
 
         setTimeout(function(){that.isAnimate = false;}, duration);
@@ -14517,29 +14524,36 @@ var Hotkey = {
     }
 };
 
-$.fn.hotkey = function(key, fn){
+function bindKey(key, fn){
     return this.each(function(){
         $(this).on(Metro.events.keyup+".hotkey-method-"+key, function(e){
             var _key = Hotkey.getKey(e);
-            if (key === _key) Utils.exec(fn, [e, _key, key], this);
+            var el = $(this);
+            var href = ""+el.attr("href");
+
+            if (key !== _key) {
+                return;
+            }
+
+            if (el.is("a")) {
+                if (href && href.trim() !== "#") {
+                    window.location.href = href;
+                }
+            }
+
+            Utils.exec(fn, [e, _key, key], this);
         })
     })
-};
-
-if (METRO_JQUERY && jquery_present) {
-    jQuery.fn.hotkey = function(key, fn){
-        return this.each(function(){
-            $(this).on(Metro.events.keyup+".hotkey-method-"+key, function(e){
-                var _key = Hotkey.getKey(e);
-                if (key === _key) Utils.exec(fn, [e, _key, key], this);
-            })
-        })
-    };
 }
 
+$.fn.hotkey = bindKey;
+
+if (METRO_JQUERY && jquery_present) {
+    jQuery.fn.hotkey = bindKey;
+}
 
 $(document).on(Metro.events.keyup + ".hotkey-data", function(e){
-    var el, fn, key;
+    var el, fn, key, href;
 
     if (
         (METRO_HOTKEYS_FILTER_INPUT_ACCEPTING_ELEMENTS && /textarea|input|select/i.test(e.target.nodeName)) ||
@@ -14553,10 +14567,19 @@ $(document).on(Metro.events.keyup + ".hotkey-data", function(e){
     key = Hotkey.getKey(e);
 
     if (Utils.keyInObject(Metro.hotkeys, key)) {
-        el = Metro.hotkeys[key][0];
+        el = $(Metro.hotkeys[key][0]);
         fn = Metro.hotkeys[key][1];
+        href = (""+el.attr("href")).trim();
 
-        fn === false ? $(el).click() : Utils.exec(fn);
+        if (fn) {
+            Utils.exec(fn);
+        } else {
+            if (el.is("a") && href && href.length > 0 && href.trim() !== "#") {
+                window.location.href = href;
+            } else {
+                el.click();
+            }
+        }
     }
 });
 
@@ -20401,7 +20424,7 @@ var Select = {
         var html = Utils.isValue(option.attr('data-template')) ? option.attr('data-template').replace("$1", item.text):item.text;
         var tag;
 
-        l = $("<li>").addClass(o.clsOption).data("option", item).attr("data-text", item.text).attr('data-value', Utils.isValue(item.value) ? item.value : "").appendTo(parent);
+        l = $("<li>").addClass(o.clsOption).data("option", item).attr("data-text", item.text).attr('data-value', Utils.isValue(item.value) ? item.value : item.text).appendTo(parent);
         a = $("<a>").html(html).appendTo(l);
 
         l.addClass(item.className);
@@ -20485,7 +20508,7 @@ var Select = {
 
         input = $("<div>").addClass("select-input").addClass(o.clsSelectInput).attr("name", "__" + select_id + "__");
         drop_container = $("<div>").addClass("drop-container");
-        list = $("<ul>").addClass("d-menu").addClass(o.clsDropList).css({
+        list = $("<ul>").addClass( o.clsDropList === "" ? "d-menu" : o.clsDropList).css({
             "max-height": o.dropHeight
         });
         filter_input = $("<input type='text' data-role='input'>").attr("placeholder", o.filterPlaceholder);
@@ -21357,11 +21380,11 @@ var Slider = {
                     val: that.value,
                     percent: that.percent
                 });
-            });
+            }, {ns: slider.attr("id")});
 
             $(document).on(Metro.events.stopAll, function(){
-                $(document).off(Metro.events.moveAll);
-                $(document).off(Metro.events.stopAll);
+                $(document).off(Metro.events.moveAll, {ns: slider.attr("id")});
+                $(document).off(Metro.events.stopAll, {ns: slider.attr("id")});
 
                 if (o.hintAlways !== true) {
                     hint.fadeOut(300);
@@ -21372,7 +21395,7 @@ var Slider = {
                     val: that.value,
                     percent: that.percent
                 });
-            });
+            }, {ns: slider.attr("id")});
 
             Utils.exec(o.onStart, [that.value, that.percent], element[0]);
             element.fire("start", {
@@ -21588,8 +21611,8 @@ var Slider = {
             if (slider_visible) {
                 marker.css('top', length - this.pixel);
             } else {
-                marker.css('top', this.percent + "%");
-                marker.css('margin-top', this.percent === 0 ? 0 : -1 * marker_size / 2);
+                marker.css('top', (100 - this.percent) + "%");
+                marker.css('margin-top', marker_size / 2);
             }
             complete.css('height', this.percent+"%");
         } else {
@@ -22369,7 +22392,7 @@ var Splitter = {
         var element = this.element, o = this.options;
         var children = element.children(o.children).addClass("split-block");
         var i, children_sizes = [];
-        var gutters, resizeProp = o.splitMode === "horizontal" ? "width" : "height";
+        var resizeProp = o.splitMode === "horizontal" ? "width" : "height";
 
         if (!Utils.isValue(element.attr("id"))) {
             element.attr("id", Utils.elementId("splitter"));
@@ -22384,20 +22407,7 @@ var Splitter = {
             $("<div>").addClass("gutter").css(resizeProp, o.gutterSize).insertAfter($(children[i]));
         }
 
-        gutters = element.children(".gutter");
-
-        if (!Utils.isValue(o.splitSizes)) {
-            children.css({
-                flexBasis: "calc("+(100/children.length)+"% - "+(gutters.length * o.gutterSize)+"px)"
-            })
-        } else {
-            children_sizes = Utils.strToArray(o.splitSizes);
-            for(i = 0; i < children_sizes.length; i++) {
-                $(children[i]).css({
-                    flexBasis: "calc("+children_sizes[i]+"% - "+(gutters.length * o.gutterSize)+"px)"
-                });
-            }
-        }
+        this._setSize();
 
         if (Utils.isValue(o.minSizes)) {
             if (String(o.minSizes).contains(",")) {
@@ -22415,6 +22425,27 @@ var Splitter = {
 
         if (o.saveState && this.storage !== null) {
             this._getSize();
+        }
+    },
+
+    _setSize: function(){
+        var element = this.element, o = this.options;
+        var gutters, children_sizes, i;
+        var children = element.children(".split-block");
+
+        gutters = element.children(".gutter");
+
+        if (!Utils.isValue(o.splitSizes)) {
+            children.css({
+                flexBasis: "calc("+(100/children.length)+"% - "+(gutters.length * o.gutterSize)+"px)"
+            })
+        } else {
+            children_sizes = Utils.strToArray(o.splitSizes);
+            for(i = 0; i < children_sizes.length; i++) {
+                $(children[i]).css({
+                    flexBasis: "calc("+children_sizes[i]+"% - "+(gutters.length * o.gutterSize)+"px)"
+                });
+            }
         }
     },
 
@@ -22494,7 +22525,7 @@ var Splitter = {
     },
 
     _saveSize: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
         var storage = this.storage, itemsSize = [];
 
         if (o.saveState === true && storage !== null) {
@@ -22510,7 +22541,7 @@ var Splitter = {
     },
 
     _getSize: function(){
-        var that = this, element = this.element, o = this.options;
+        var element = this.element, o = this.options;
         var storage = this.storage, itemsSize = [];
 
         if (o.saveState === true && storage !== null) {
@@ -22524,8 +22555,26 @@ var Splitter = {
         }
     },
 
-    changeAttribute: function(attributeName){
+    size: function(size){
+        var that = this, o = this.options;
+        if (Utils.isValue(size)) {
+            o.splitSizes = size;
+            that._setSize();
+        }
+        return this;
+    },
 
+    changeAttribute: function(attributeName){
+        var that = this, element = this.element;
+
+        function changeSize(){
+            var size = element.attr("data-split-sizes");
+            that.size(size);
+        }
+
+        if (attributeName === 'data-split-sizes') {
+            changeSize();
+        }
     },
 
     destroy: function(){
@@ -23678,6 +23727,9 @@ var TableDefaultConfig = {
     filters: null,
     filtersOperator: "and",
 
+    head: null,
+    body: null,
+    static: false,
     source: null,
 
     searchMinLength: 1,
@@ -23768,6 +23820,7 @@ var TableDefaultConfig = {
     onDataLoad: Metro.noop,
     onDataLoadError: Metro.noop,
     onDataLoaded: Metro.noop,
+    onDataSaveError: Metro.noop,
     onFilterRowAccepted: Metro.noop,
     onFilterRowDeclined: Metro.noop,
     onCheckClick: Metro.noop,
@@ -23865,6 +23918,32 @@ var Table = {
             this.searchFields = Utils.strToArray(o.searchFields);
         }
 
+        if (Utils.isValue(o.head)) {
+            var _head = o.head;
+            o.head = Utils.isObject(o.head);
+            if (!o.head) {
+                console.warn("Head "+_head+" defined but not exists!");
+                o.head = null;
+            }
+        }
+
+        if (Utils.isValue(o.body)) {
+            var _body = o.body;
+            o.body = Utils.isObject(o.body);
+            if (!o.body) {
+                console.warn("Body "+_body+" defined but not exists!");
+                o.body = null;
+            }
+        }
+
+        if (o.static === true) {
+            o.showPagination = false;
+            o.showRowsSteps = false;
+            o.showSearch = false;
+            o.showTableInfo = false;
+            o.rows = -1;
+        }
+
         if (o.source !== null) {
             Utils.exec(o.onDataLoad, [o.source], element[0]);
             element.fire("dataload", {
@@ -23911,6 +23990,14 @@ var Table = {
         this.items = [];
         this.heads = [];
         this.foots = [];
+
+        if (Array.isArray(o.head)) {
+            this.heads = o.head;
+        }
+
+        if (Array.isArray(o.body)) {
+            this.items = o.body;
+        }
 
         if (Utils.isValue(data)) {
             this._createItemsFromJSON(data);
@@ -24100,7 +24187,7 @@ var Table = {
         this._createInspectorEvents();
     },
 
-    _createHeadsFormHTML: function(){
+    _createHeadsFromHTML: function(){
         var that = this, element = this.element;
         var head = element.find("thead");
 
@@ -24182,7 +24269,7 @@ var Table = {
             that.items.push(tr);
         });
 
-        this._createHeadsFormHTML();
+        this._createHeadsFromHTML();
         this._createFootsFromHTML();
     },
 
@@ -24196,7 +24283,7 @@ var Table = {
         if (source.header !== undefined) {
             that.heads = source.header;
         } else {
-            this._createHeadsFormHTML();
+            this._createHeadsFromHTML();
         }
 
         if (source.data !== undefined) {
@@ -24829,21 +24916,27 @@ var Table = {
                 view: view
             });
         } else {
+            var post_data = {
+                id : element.attr("id"),
+                view : view
+            };
             $.post(
-                o.viewSavePath,
-                {
-                    id : element.attr("id"),
-                    view : view
-                },
-                function(data, status, xhr){
-                    Utils.exec(o.onViewSave, [o.viewSavePath, view, data, status, xhr], element[0]);
+                o.viewSavePath, post_data).then(function(data){
+                    Utils.exec(o.onViewSave, [o.viewSavePath, view, post_data, data], element[0]);
                     element.fire("viewsave", {
                         target: "server",
                         path: o.viewSavePath,
-                        view: view
+                        view: view,
+                        post_data: post_data
                     });
-                }
-            );
+                }, function(xhr){
+                    Utils.exec(o.onDataSaveError, [o.viewSavePath, post_data, xhr], element[0]);
+                    element.fire("datasaveerror", {
+                        source: o.viewSavePath,
+                        xhr: xhr,
+                        post_data: post_data
+                    });
+                });
         }
     },
 
@@ -24971,6 +25064,11 @@ var Table = {
 
         body.html("");
 
+        if (!this.heads.length) {
+            console.warn("Heads is not defined for table ID " + element.attr("id"));
+            return ;
+        }
+
         items = this._filter();
 
         if (items.length > 0) {
@@ -25023,10 +25121,7 @@ var Table = {
                     var td = $("<td>");
 
                     if (Utils.isValue(that.heads[cell_index].template)) {
-                        val = TemplateEngine(that.heads[cell_index].template, {value: val}, {
-                            beginToken: o.templateBeginToken,
-                            endToken: o.templateEndToken
-                        })
+                        val = that.heads[cell_index].template.replace("%VAL%", val);
                     }
 
                     if (o.cellWrapper === true) {
@@ -25115,8 +25210,8 @@ var Table = {
         var result, col = row[this.sort.colIndex];
         var format = this.heads[this.sort.colIndex].format;
         var formatMask = !Utils.isNull(this.heads) && !Utils.isNull(this.heads[this.sort.colIndex]) && Utils.isValue(this.heads[this.sort.colIndex]['formatMask']) ? this.heads[this.sort.colIndex]['formatMask'] : "%Y-%m-%d";
-        var thousandSeparator = $.iif(this.heads && this.heads[this.sort.colIndex], this.heads[this.sort.colIndex]["thousandSeparator"], o.thousandSeparator);
-        var decimalSeparator  = $.iif(this.heads && this.heads[this.sort.colIndex], this.heads[this.sort.colIndex]["decimalSeparator"], o.decimalSeparator);
+        var thousandSeparator = this.heads && this.heads[this.sort.colIndex] && this.heads[this.sort.colIndex]["thousandSeparator"] ? this.heads[this.sort.colIndex]["thousandSeparator"] : o.thousandSeparator;
+        var decimalSeparator  = this.heads && this.heads[this.sort.colIndex] && this.heads[this.sort.colIndex]["decimalSeparator"] ? this.heads[this.sort.colIndex]["decimalSeparator"] : o.decimalSeparator;
 
         result = (""+col).toLowerCase().replace(/[\n\r]+|[\s]{2,}/g, ' ').trim();
 
@@ -25140,11 +25235,33 @@ var Table = {
         return result;
     },
 
+    addItem: function(item, redraw){
+        if (!Array.isArray(item)) {
+            console.warn("Item is not an array and can't be added");
+            return this;
+        }
+        this.items.push(item);
+        if (redraw !== false) this.draw();
+    },
+
+    addItems: function(items, redraw){
+        if (!Array.isArray(items)) {
+            console.warn("Items is not an array and can't be added");
+            return this;
+        }
+        items.forEach(function(item){
+            if (Array.isArray(item))
+                this.items.push(item, false);
+        });
+        this.draw();
+        if (redraw !== false) this.draw();
+    },
+
     updateItem: function(key, field, value){
         var item = this.items[this.index[key]];
         var fieldIndex = null;
         if (Utils.isNull(item)) {
-            console.log('Item is undefined for update');
+            console.warn('Item is undefined for update');
             return this;
         }
         if (isNaN(field)) {
@@ -25311,7 +25428,7 @@ var Table = {
     setHeadItem: function(name, data){
         var i, index;
         for(i = 0; i < this.heads.length; i++) {
-            if (item.name === name) {
+            if (this.heads[i].name === name) {
                 index = i;
                 break;
             }
@@ -25326,9 +25443,19 @@ var Table = {
     },
 
     setData: function(/*obj*/ data){
+        var o = this.options;
+
         this.items = [];
         this.heads = [];
         this.foots = [];
+
+        if (Array.isArray(o.head)) {
+            this.heads = o.head;
+        }
+
+        if (Array.isArray(o.body)) {
+            this.items = o.body;
+        }
 
         this._createItemsFromJSON(data);
 
@@ -25368,6 +25495,15 @@ var Table = {
                     source: o.source,
                     data: data
                 });
+
+                if (Array.isArray(o.head)) {
+                    that.heads = o.head;
+                }
+
+                if (Array.isArray(o.body)) {
+                    that.items = o.body;
+                }
+
                 that._createItemsFromJSON(data);
                 that._rebuild(review);
             }, function(xhr){
@@ -28993,7 +29129,8 @@ var TreeView = {
         checks = check.closest("li").find("ul input[type=checkbox]");
         checks.attr("data-indeterminate", false);
         checks.prop("checked", checked);
-
+        checks.trigger('change');
+        
         all_checks = [];
 
         $.each(element.find("input[type=checkbox]"), function(){
@@ -29010,6 +29147,7 @@ var TreeView = {
             if (children > 0 && children_checked === 0) {
                 ch.attr("data-indeterminate", false);
                 ch.prop("checked", false);
+                ch.trigger('change');
             }
 
             if (children_checked === 0) {
@@ -29020,6 +29158,7 @@ var TreeView = {
                 } else if (children === children_checked) {
                     ch.attr("data-indeterminate", false);
                     ch.prop("checked", true);
+                    ch.trigger('change');
                 }
             }
         });
@@ -29179,6 +29318,7 @@ var TreeView = {
 };
 
 Metro.plugin('treeview', TreeView);
+
 
 var ValidatorFuncs = {
     required: function(val){
@@ -31320,6 +31460,6 @@ var Wizard = {
 
 Metro.plugin('wizard', Wizard);
 
-return METRO_INIT === true ? Metro.init() : Metro;
+if (METRO_INIT ===  true) METRO_INIT_MODE === 'immediate' ? Metro.init() : $(function(){Metro.init()}) 
 
 }));
