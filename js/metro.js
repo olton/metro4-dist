@@ -1,7 +1,7 @@
 /*
- * Metro 4 Components Library v4.3.5  (https://metroui.org.ua)
+ * Metro 4 Components Library v4.3.6  (https://metroui.org.ua)
  * Copyright 2012-2020 Sergey Pimenov
- * Built at 14/01/2020 12:35:08
+ * Built at 15/03/2020 11:45:15
  * Licensed under MIT
  */
 
@@ -559,7 +559,7 @@ function normalizeEventName(name) {
 
 // Source: src/core.js
 
-var m4qVersion = "v1.0.5. Built at 14/01/2020 12:29:41";
+var m4qVersion = "v1.0.6. Built at 14/02/2020 19:08:43";
 var regexpSingleTag = /^<([a-z][^\/\0>:\x20\t\r\n\f]*)[\x20\t\r\n\f]*\/?>(?:<\/\1>|)$/i;
 
 var matches = Element.prototype.matches
@@ -2030,7 +2030,7 @@ $.ajax = function(p){
             });
         }
         if (!isGet(method)) {
-            if (headers.indexOf("Content-type") === -1) {
+            if (headers.indexOf("Content-type") === -1 && p.contentType !== false) {
                 xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
             }
         }
@@ -3619,10 +3619,15 @@ $.init = function(sel, ctx){
         }
     }
 
-    if (ctx !== undefined && (ctx instanceof $ || ctx instanceof HTMLElement)) {
-        this.each(function(){
-            $(ctx).append($(this))
-        });
+    if (ctx !== undefined) {
+        var that = this;
+        if (ctx instanceof $) {
+            this.each(function () {
+                $(ctx).append(that)
+            });
+        } else if (ctx instanceof HTMLElement) {
+            $(ctx).append(that);
+        }
     }
 
     return this;
@@ -3774,9 +3779,9 @@ var normalizeComponentName = function(name){
 
 var Metro = {
 
-    version: "4.3.5",
-    compileTime: "14/01/2020 12:35:15",
-    buildNumber: "743",
+    version: "4.3.6",
+    compileTime: "15/03/2020 11:45:22",
+    buildNumber: "744",
     isTouchable: isTouch,
     fullScreenEnabled: document.fullscreenEnabled,
     sheet: null,
@@ -4029,6 +4034,8 @@ var Metro = {
         var hotkeys = $("[data-hotkey]");
         var html = $("html");
 
+        if (METRO_SHOW_ABOUT) Metro.about(true);
+
         if (isTouch === true) {
             html.addClass("metro-touch-device");
         } else {
@@ -4048,8 +4055,6 @@ var Metro = {
 
         Metro.initHotkeys(hotkeys);
         Metro.initWidgets(widgets, "init");
-
-        if (METRO_SHOW_ABOUT) Metro.about(true);
 
         if (METRO_CLOAK_REMOVE !== "fade") {
             $(".m4-cloak").removeClass("m4-cloak");
@@ -4442,13 +4447,13 @@ if (typeof Array.contains !== "function") {
 function RGB(r, g, b){
     this.r = r || 0;
     this.g = g || 0;
-    this.g = b || 0;
+    this.b = b || 0;
 }
 
 function RGBA(r, g, b, a){
     this.r = r || 0;
     this.g = g || 0;
-    this.g = b || 0;
+    this.b = b || 0;
     this.a = a || 1;
 }
 
@@ -5671,12 +5676,12 @@ var Locales = {
             ],
             "days": [
                 "Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag",
-                "Sn", "Mn", "Di", "Mi", "Do", "Fr", "Sa",
+                "So", "Mo", "Di", "Mi", "Do", "Fr", "Sa",
                 "Son", "Mon", "Die", "Mit", "Don", "Fre", "Sam"
             ],
             "time": {
                 "days": "TAGE",
-                "hours": "UHR",
+                "hours": "STD",
                 "minutes": "MIN",
                 "seconds": "SEK"
             }
@@ -5687,12 +5692,12 @@ var Locales = {
             "done": "Fertig",
             "today": "Heute",
             "now": "Jetzt",
-            "clear": "Reinigen",
+            "clear": "Löschen",
             "help": "Hilfe",
             "yes": "Ja",
             "no": "Nein",
             "random": "Zufällig",
-            "save": "Sparen",
+            "save": "Speichern",
             "reset": "Zurücksetzen"
         }
     },
@@ -5844,7 +5849,7 @@ var Locales = {
             ],
             "days": [
                 "Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi",
-                "De", "Du", "Ma", "Me", "Je", "Ve", "Sa",
+                "Di", "Lu", "Ma", "Me", "Je", "Ve", "Sa",
                 "Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"
             ],
             "time": {
@@ -9640,6 +9645,7 @@ $(document).on(Metro.events.click, function(e){
 Metro.plugin('calendar', Calendar);
 
 var CalendarPickerDefaultConfig = {
+    value:'',
     calendarpickerDeferred: 0,
     nullValue: true,
     useNow: false,
@@ -9758,15 +9764,17 @@ var CalendarPicker = {
         var container = $("<div>").addClass("input " + element[0].className + " calendar-picker");
         var buttons = $("<div>").addClass("button-group");
         var calendarButton, clearButton, cal = $("<div>").addClass("drop-shadow");
-        var curr = element.val().trim();
+        var curr;
         var id = Utils.elementId("calendarpicker");
         var body = $("body");
 
         container.attr("id", id);
 
-        if (element.attr("type") === undefined) {
-            element.attr("type", "text");
-        }
+        element.attr("type", "text");
+        element.attr("autocomplete", "off");
+        element.attr("readonly", true);
+
+        curr = (""+o.value).trim() !== '' ? o.value : element.val().trim();
 
         if (!Utils.isValue(curr)) {
             if (o.useNow) this.value = new Date();
@@ -9776,7 +9784,7 @@ var CalendarPicker = {
 
         if (Utils.isValue(this.value)) this.value.setHours(0,0,0,0);
 
-        element.val(!Utils.isValue(curr) && o.nullValue === true ? "" : this.value.format(o.format, o.locale));
+        element.val(!Utils.isValue(curr) && o.nullValue === true ? "" : that.value.format(o.format, o.locale));
 
         container.insertBefore(element);
         element.appendTo(container);
@@ -9876,7 +9884,6 @@ var CalendarPicker = {
         }
 
         element[0].className = '';
-        element.attr("readonly", true);
 
         if (o.copyInlineStyles === true) {
             $.each(Utils.getInlineStyles(element), function(key, value){
@@ -10013,8 +10020,9 @@ var CalendarPicker = {
 
         if (Utils.isDate(v, o.inputFormat) === true) {
             Metro.getPlugin(this.calendar[0],"calendar").clearSelected();
-            this.value = typeof v === 'string' ? v.toDate(o.inputFormat, o.locale) : v;
-            element.val(this.value.format(o.format));
+            this.value = typeof v === 'string' ? o.inputFormat ? v.toDate(o.inputFormat, o.locale) : new Date(v) : v;
+            if (Utils.isValue(this.value)) this.value.setHours(0,0,0,0);
+            element.val(this.value.format(o.format, o.locale));
             element.trigger("change");
         }
     },
@@ -10065,7 +10073,7 @@ var CalendarPicker = {
     },
 
     changeAttribute: function(attributeName){
-        var that = this, element = this.element;
+        var that = this, element = this.element, o = this.options;
         var cal = Metro.getPlugin(this.calendar[0], "calendar");
 
         var changeAttrLocale = function(){
@@ -10092,6 +10100,10 @@ var CalendarPicker = {
             that.val(element.attr("value"));
         };
 
+        var changeDataValue = function(){
+            that.val(element.attr("data-value"))
+        };
+
         switch (attributeName) {
             case "value": changeAttrValue(); break;
             case 'disabled': this.toggleState(); break;
@@ -10100,6 +10112,7 @@ var CalendarPicker = {
             case 'data-exclude': changeAttrExclude(); break;
             case 'data-min-date': changeAttrMinDate(); break;
             case 'data-max-date': changeAttrMaxDate(); break;
+            case 'data-value': changeDataValue(); break;
         }
     },
 
@@ -11219,6 +11232,13 @@ var Checkbox = {
     },
 
     _create: function(){
+        this._createStructure();
+        this._createEvents();
+        Utils.exec(this.options.onCheckboxCreate, null, this.element[0]);
+        this.element.fire("checkboxcreate");
+    },
+
+    _createStructure: function(){
         var element = this.element, o = this.options;
         var checkbox = $("<label>").addClass("checkbox " + element[0].className).addClass(o.style === 2 ? "style2" : "");
         var check = $("<span>").addClass("check");
@@ -11270,9 +11290,18 @@ var Checkbox = {
         } else {
             this.enable();
         }
+    },
 
-        Utils.exec(o.onCheckboxCreate, [element]);
-        element.fire("checkboxcreate");
+    _createEvents: function(){
+        var element = this.element, check = element.siblings(".check");
+
+        element.on("focus", function(){
+            check.addClass("focused");
+        });
+
+        element.on("blur", function(){
+            check.removeClass("focused");
+        });
     },
 
     indeterminate: function(v){
@@ -11325,7 +11354,10 @@ var Checkbox = {
     },
 
     destroy: function(){
-        return this.element;
+        var element = this.element;
+        element.off("focus");
+        element.off("blur");
+        return element;
     }
 };
 
@@ -20225,6 +20257,16 @@ var Radio = {
 
     _create: function(){
         var element = this.element, o = this.options;
+
+        this._createStructure();
+        this._createEvents();
+
+        Utils.exec(o.onRadioCreate, null, element[0]);
+        element.fire("radiocreate");
+    },
+
+    _createStructure: function(){
+        var element = this.element, o = this.options;
         var radio = $("<label>").addClass("radio " + element[0].className).addClass(o.style === 2 ? "style2" : "");
         var check = $("<span>").addClass("check");
         var caption = $("<span>").addClass("caption").html(o.caption);
@@ -20258,9 +20300,18 @@ var Radio = {
         } else {
             this.enable();
         }
+    },
 
-        Utils.exec(o.onRadioCreate, null, element[0]);
-        element.fire("radiocreate");
+    _createEvents: function(){
+        var element = this.element, check = element.siblings(".check");
+
+        element.on("focus", function(){
+            check.addClass("focused");
+        });
+
+        element.on("blur", function(){
+            check.removeClass("focused");
+        });
     },
 
     disable: function(){
@@ -21213,6 +21264,7 @@ var SelectDefaultConfig = {
     clsOptionActive: "",
     clsOptionGroup: "",
     clsDropList: "",
+    clsDropContainer: "",
     clsSelectedItem: "",
     clsSelectedItemRemover: "",
 
@@ -21359,10 +21411,16 @@ var Select = {
         var select_id = Utils.elementId("select");
         var buttons = $("<div>").addClass("button-group");
         var input, drop_container, drop_container_input, list, filter_input, placeholder, dropdown_toggle;
+        var checkboxID = Utils.elementId("select-focus-trigger");
+        var checkbox = $("<input type='checkbox'>").addClass("select-focus-trigger").attr("id", checkboxID);
 
         this.placeholder = $("<span>").addClass("placeholder").html(o.placeholder);
 
-        container.attr("id", select_id);
+        if (!element.attr("id")) {
+            element.attr("id", Utils.elementId("select-origin"));
+        }
+
+        container.attr("id", select_id).attr("for", checkboxID);
 
         dropdown_toggle = $("<span>").addClass("dropdown-toggle");
         dropdown_toggle.appendTo(container);
@@ -21374,9 +21432,10 @@ var Select = {
         container.insertBefore(element);
         element.appendTo(container);
         buttons.appendTo(container);
+        checkbox.appendTo(container);
 
         input = $("<div>").addClass("select-input").addClass(o.clsSelectInput).attr("name", "__" + select_id + "__");
-        drop_container = $("<div>").addClass("drop-container");
+        drop_container = $("<div>").addClass("drop-container").addClass(o.clsDropContainer);
         drop_container_input = $("<div>").appendTo(drop_container);
         list = $("<ul>").addClass( o.clsDropList === "" ? "d-menu" : o.clsDropList).css({
             "max-height": o.dropHeight
@@ -21483,6 +21542,15 @@ var Select = {
         var filter_input = drop_container.find("input");
         var list = drop_container.find("ul");
         var clearButton = container.find(".input-clear-button");
+        var checkbox = container.find(".select-focus-trigger");
+
+        checkbox.on("focus", function(){
+            container.addClass("focused");
+        });
+
+        checkbox.on("blur", function(){
+            container.removeClass("focused");
+        });
 
         clearButton.on(Metro.events.click, function(e){
             element.val(o.emptyValue);
@@ -24202,7 +24270,8 @@ Metro['session'] = Storage(window.sessionStorage);
 
 var StreamerDefaultConfig = {
     streamerDeferred: 0,
-    wheel: false,
+    wheel: true,
+    wheelStep: 20,
     duration: METRO_ANIMATION_DURATION,
     defaultClosedIcon: "",
     defaultOpenIcon: "",
@@ -24228,6 +24297,10 @@ var StreamerDefaultConfig = {
     onDataLoad: Metro.noop,
     onDataLoaded: Metro.noop,
     onDataLoadError: Metro.noop,
+
+    onDrawEvent: Metro.noop,
+    onDrawGlobalEvent: Metro.noop,
+    onDrawStream: Metro.noop,
 
     onStreamClick: Metro.noop,
     onStreamSelect: Metro.noop,
@@ -24331,6 +24404,7 @@ var Streamer = {
         var that = this, element = this.element, o = this.options, data = this.data;
         var streams = element.find(".streams").html("");
         var events_area = element.find(".events-area").html("");
+        var fake_timeline;
         var timeline = $("<ul>").addClass("streamer-timeline").html("").appendTo(events_area);
         var streamer_events = $("<div>").addClass("streamer-events").appendTo(events_area);
         var event_group_main = $("<div>").addClass("event-group").appendTo(streamer_events);
@@ -24380,12 +24454,26 @@ var Streamer = {
         stop.setMinutes(stop_time_array[1]);
         stop.setSeconds(0);
 
-        for (var i = start.getTime()/1000; i <= stop.getTime()/1000; i += step) {
-            var t = new Date(i * 1000);
-            var h = t.getHours(), m = t.getMinutes();
-            var v = (h < 10 ? "0"+h : h) + ":" + (m < 10 ? "0"+m : m);
+        var i, t, h, v, m, j, fm, li, fli, fli_w;
 
-            var li = $("<li>").data("time", v).addClass("js-time-point-" + v.replace(":", "-")).html("<em>"+v+"</em>").appendTo(timeline);
+        for (i = start.getTime()/1000; i <= stop.getTime()/1000; i += step) {
+            t = new Date(i * 1000);
+            h = t.getHours();
+            m = t.getMinutes();
+            v = (h < 10 ? "0"+h : h) + ":" + (m < 10 ? "0"+m : m);
+
+            li = $("<li>").data("time", v).addClass("js-time-point-" + v.replace(":", "-")).html("<em>"+v+"</em>").appendTo(timeline);
+
+            fli_w = li.width() / parseInt(data.timeline.step);
+            fake_timeline = $("<ul>").addClass("streamer-fake-timeline").html("").appendTo(li);
+            for(j = 0; j < parseInt(data.timeline.step); j++) {
+                fm = m + j;
+                v = (h < 10 ? "0"+h : h) + ":" + (fm < 10 ? "0"+fm : fm);
+                fli = $("<li>").data("time", v).addClass("js-fake-time-point-" + v.replace(":", "-")).html("|").appendTo(fake_timeline);
+                fli.css({
+                    width: fli_w
+                })
+            }
         }
 
         // -- End timeline creator
@@ -24434,12 +24522,13 @@ var Streamer = {
                             .data("time", event_item.time)
                             .data("target", event_item.target)
                             .addClass("stream-event")
-                            .addClass("size-"+event_item.size+"x")
+                            .addClass("size-"+event_item.size+(["half", "one-third"].contains(event_item.size) ? "" : "x"))
                             .addClass(event_item.cls)
                             .appendTo(stream_events);
 
 
-                        var left = timeline.find(".js-time-point-"+this.time.replace(":", "-"))[0].offsetLeft - stream.outerWidth();
+                        var time_point = timeline.find(".js-fake-time-point-"+this.time.replace(":", "-"));
+                        var left = time_point.offset().left - stream_events.offset().left;
                         var top = 75 * (row - 1);
 
                         if (row > rows) {
@@ -24499,6 +24588,12 @@ var Streamer = {
                         } else {
                             event.html(event_item.html);
                         }
+
+                        Utils.exec(o.onDrawEvent, [event[0]], element[0]);
+                        element.fire("drawevent", {
+                            event: event[0]
+                        });
+
                     });
 
                     var last_child = stream_events.find(".stream-event").last();
@@ -24511,17 +24606,24 @@ var Streamer = {
 
                 element.find(".stream").eq(stream_events.index()).css({
                     height: stream_height * rows
-                })
+                });
+
+                Utils.exec(o.onDrawStream, [stream[0]], element[0]);
+                element.fire("drawstream", {
+                    stream: stream[0]
+                });
+
             });
         }
 
         if (data.global !== undefined) {
+            var streamer_events_left = streamer_events.offset().left;
             $.each(['before', 'after'], function(){
                 var global_item = this;
                 if (data.global[global_item] !== undefined) {
                     $.each(data.global[global_item], function(){
                         var event_item = this;
-                        var group = $("<div>").addClass("event-group").addClass("size-"+event_item.size+"x");
+                        var group = $("<div>").addClass("event-group").addClass("size-"+event_item.size+(["half", "one-third"].contains(event_item.size) ? "" : "x"));
                         var events = $("<div>").addClass("stream-events global-stream").appendTo(group);
                         var event = $("<div>").addClass("stream-event").appendTo(events);
                         event
@@ -24535,14 +24637,23 @@ var Streamer = {
                         $("<div>").addClass("event-subtitle").html(event_item.subtitle).appendTo(event);
                         $("<div>").addClass("event-html").html(event_item.html).appendTo(event);
 
-                        var left, t = timeline.find(".js-time-point-"+this.time.replace(":", "-"));
+                        var left, t = timeline.find(".js-fake-time-point-"+this.time.replace(":", "-"));
 
-                        if (t.length > 0) left = t[0].offsetLeft - streams.find(".stream").outerWidth();
+                        if (t.length > 0) {
+                            // left = t[0].offsetLeft - streams.find(".stream").outerWidth();
+                            left = t.offset().left - streamer_events_left;
+                        }
                         group.css({
                             position: "absolute",
                             left: left,
                             height: "100%"
                         }).appendTo(streamer_events);
+
+                        Utils.exec(o.onDrawGlobalEvent, [event[0]], element[0]);
+                        element.fire("dataloaded", {
+                            event: event[0]
+                        });
+
                     });
                 }
             });
@@ -24591,6 +24702,19 @@ var Streamer = {
 
     _createEvents: function(){
         var that = this, element = this.element, o = this.options;
+
+        function disableScroll() {
+            var scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            var scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+            window.onscroll = function() {
+                window.scrollTo(scrollLeft, scrollTop);
+            };
+        }
+
+        function enableScroll() {
+            window.onscroll = function() {};
+        }
 
         element.off(Metro.events.click, ".stream-event").on(Metro.events.click, ".stream-event", function(e){
             var event = $(this);
@@ -24682,26 +24806,33 @@ var Streamer = {
         });
 
         if (o.wheel === true) {
-            element.find(".events-area").off(Metro.events.mousewheel);
-            element.find(".events-area").on(Metro.events.mousewheel, function(e) {
-                var scroll, scrollable = $(this);
-                var ev = e.originalEvent;
-                var dir = ev.deltaY < 0 ? -1 : 1;
-                var step = 100;
+            element.find(".events-area")
+                .off(Metro.events.mousewheel)
+                .on(Metro.events.mousewheel, function(e) {
 
-                if (ev.deltaY === undefined) {
+                if (e.deltaY === undefined) {
                     return ;
                 }
+
+                var scroll, scrollable = $(this);
+                var dir = e.deltaY > 0 ? -1 : 1;
+                var step = o.wheelStep;
+
 
                 scroll = scrollable.scrollLeft() - ( dir * step);
                 scrollable.scrollLeft(scroll);
 
-                ev.preventDefault();
+            });
+
+            element.find(".events-area").off("mouseenter").on("mouseenter", function(e) {
+                disableScroll();
+            });
+            element.find(".events-area").off("mouseleave").on("mouseleave", function(e) {
+                enableScroll();
             });
         }
 
-        element.find(".events-area").last().off("scroll");
-        element.find(".events-area").last().on("scroll", function(e){
+        element.find(".events-area").last().off("scroll").on("scroll", function(e){
             that._fireScroll();
         });
 
@@ -25646,6 +25777,7 @@ var Table = {
                 sortable: item.hasClass("sortable-column") || (Utils.isValue(item.data('sortable')) && JSON.parse(item.data('sortable') === true)),
                 sortDir: dir,
                 format: Utils.isValue(item.data("format")) ? item.data("format") : "string",
+                formatMask: Utils.isValue(item.data("format-mask")) ? item.data("format-mask") : null,
                 clsColumn: Utils.isValue(item.data("cls-column")) ? item.data("cls-column") : "",
                 cls: item_class,
                 colspan: item.attr("colspan"),
@@ -29197,18 +29329,25 @@ $(document).on(Metro.events.click, function(){
 });
 
 
+var ToastDefaultConfig = {
+    callback: Metro.noop,
+    timeout: METRO_TIMEOUT,
+    distance: 20,
+    showTop: false,
+    clsToast: ""
+};
+
+Metro.toastSetup = function(options){
+    ToastDefaultConfig = $.extend({}, ToastDefaultConfig, options);
+};
+
+if (typeof window["metroToastSetup"] !== undefined) {
+    Metro.toastSetup(window["metroToastSetup"]);
+}
+
 var Toast = {
-
-    options: {
-        callback: Metro.noop,
-        timeout: METRO_TIMEOUT,
-        distance: 20,
-        showTop: false,
-        clsToast: ""
-    },
-
     create: function(message, callback, timeout, cls, options){
-        var o = options || Toast.options;
+        var o = $.extend({}, ToastDefaultConfig, options);
         var toast = $("<div>").addClass("toast").html(message).appendTo($("body"));
         var width = toast.outerWidth();
         var timer = null;
@@ -30549,7 +30688,7 @@ var TreeView = {
             icon = node.data("icon");
 
             if (caption !== undefined) {
-                if (node.children("ul").length > 0) {
+                if (node.children("ul").length > 0 && o.showChildCount === true) {
                     caption += " ("+node.children("ul").children("li").length+")"
                 }
                 node.prepend(that._createCaption(caption));
@@ -31299,6 +31438,8 @@ var Validator = {
                 }, o.clearInvalid);
             }
         }
+
+        console.log(result.val === 0);
 
         return result.val === 0;
     },
