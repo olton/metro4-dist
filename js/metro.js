@@ -1,7 +1,7 @@
 /*
- * Metro 4 Components Library v4.3.8  (https://metroui.org.ua)
+ * Metro 4 Components Library v4.3.9  (https://metroui.org.ua)
  * Copyright 2012-2020 Sergey Pimenov
- * Built at 21/06/2020 20:32:20
+ * Built at 02/07/2020 21:35:52
  * Licensed under MIT
  */
 (function (global, undefined) {
@@ -4492,9 +4492,9 @@ $.noConflict = function() {
 
     var Metro = {
 
-        version: "4.3.8",
-        compileTime: "21/06/2020 20:32:30",
-        buildNumber: "746",
+        version: "4.3.9",
+        compileTime: "02/07/2020 21:36:01",
+        buildNumber: "748",
         isTouchable: isTouch,
         fullScreenEnabled: document.fullscreenEnabled,
         sheet: null,
@@ -4708,24 +4708,26 @@ $.noConflict = function() {
             };
             observerCallback = function(mutations){
                 mutations.map(function(mutation){
-
                     if (mutation.type === 'attributes' && mutation.attributeName !== "data-role") {
                         if (mutation.attributeName === 'data-hotkey') {
-
                             Metro.initHotkeys([mutation.target], true);
-
                         } else {
-
                             var element = $(mutation.target);
                             var mc = element.data('metroComponent');
-                            var newValue;
+                            var attr = mutation.attributeName, newValue = element.attr(attr), oldValue = mutation.oldValue;
 
                             if (mc !== undefined) {
+                                element.fire("attr-change", {
+                                    attr: attr,
+                                    newValue: newValue,
+                                    oldValue: oldValue,
+                                    __this: element[0]
+                                });
+
                                 $.each(mc, function(){
                                     var plug = Metro.getPlugin(element, this);
                                     if (plug && typeof plug.changeAttribute === "function") {
-                                        newValue = element.attr(mutation.attributeName);
-                                        plug.changeAttribute(mutation.attributeName, newValue, mutation.oldValue);
+                                        plug.changeAttribute(attr, newValue, oldValue);
                                     }
                                 });
                             }
@@ -4812,7 +4814,6 @@ $.noConflict = function() {
         },
 
         initHotkeys: function(hotkeys, redefine){
-            var that = this;
             $.each(hotkeys, function(){
                 var element = $(this);
                 var hotkey = element.attr('data-hotkey') ? element.attr('data-hotkey').toLowerCase() : false;
@@ -4822,13 +4823,17 @@ $.noConflict = function() {
                     return;
                 }
 
-                if (element.data('hotKeyBonded') === true && !that.utils.bool(redefine)) {
+                if (element.data('hotKeyBonded') === true && redefine !== true) {
                     return;
                 }
 
                 Metro.hotkeys[hotkey] = [this, fn];
-
                 element.data('hotKeyBonded', true);
+                element.fire("hot-key-bonded", {
+                    __this: element[0],
+                    hotkey: hotkey,
+                    fn: fn
+                });
             });
         },
 
@@ -4857,8 +4862,17 @@ $.noConflict = function() {
                                 mc.push(_func);
                             }
                             $this.data('metroComponent', mc);
+
+                            $this.fire("create", {
+                                __this: $this[0],
+                                name: _func
+                            });
+                            $(document).fire("component-create", {
+                                element: $this[0],
+                                name: _func
+                            });
                         } catch (e) {
-                            console.error("Error creating component " + func);
+                            console.error("Error creating component " + func + " for ", $this[0]);
                             throw e;
                         }
                     }
@@ -4879,7 +4893,7 @@ $.noConflict = function() {
 
             register(m4q);
 
-            if (window.METRO_JQUERY && window.jquery_present) {
+            if (window.useJQuery) {
                 register(jQuery);
             }
         },
@@ -5043,11 +5057,12 @@ $.noConflict = function() {
 
                 _fireEvent: function(eventName, data, log, noFire){
                     var element = this.element, o = this.options;
-                    var _data = data ? Object.values(data) : {};
+                    var _data;
                     var event = eventName.camelCase().capitalize();
 
-                    Utils.exec(o["on"+event], _data, element[0]);
-                    if (noFire !== true) element.fire(event.toLowerCase(), data);
+                    data = $.extend({}, data, {__this: element[0]});
+
+                    _data = data ? Object.values(data) : {};
 
                     if (log) {
                         console.warn(log);
@@ -5055,6 +5070,11 @@ $.noConflict = function() {
                         console.warn("Data: ", data);
                         console.warn("Element: ", element[0]);
                     }
+
+                    if (noFire !== true)
+                        element.fire(event.toLowerCase(), data);
+
+                    return Utils.exec(o["on"+event], _data, element[0]);
                 }
             }, compObj);
 
@@ -6118,7 +6138,7 @@ $.noConflict = function() {
         },
 
         $: function(){
-            return window.METRO_JQUERY && window.jquery_present ? jQuery : m4q;
+            return window.useJQuery ? jQuery : m4q;
         },
 
         isMetroObject: function(el, type){
@@ -6150,7 +6170,7 @@ $.noConflict = function() {
         },
 
         isIE11: function(){
-            return !!window.MSInputMethodContext && !!document.documentMode;
+            return !!window.MSInputMethodContext && !!document["documentMode"];
         },
 
         embedObject: function(val){
@@ -6354,8 +6374,9 @@ $.noConflict = function() {
         },
 
         github: function(repo, callback){
+            var that = this;
             $.json('https://api.github.com/repos/' + repo).then(function(data){
-                this.exec(callback, [data]);
+                that.exec(callback, [data]);
             });
         },
 
@@ -6768,9 +6789,9 @@ $.noConflict = function() {
                     range.selectNode(el);
                     sel.addRange(range);
                 }
-            } else if (body.createTextRange) {
-                range = body.createTextRange();
-                range.moveToElementText(el);
+            } else if (body["createTextRange"]) {
+                range = body["createTextRange"]();
+                range["moveToElementText"](el);
                 range.select();
             }
 
@@ -6782,8 +6803,8 @@ $.noConflict = function() {
                 } else if (window.getSelection().removeAllRanges) {  // Firefox
                     window.getSelection().removeAllRanges();
                 }
-            } else if (document.selection) {  // IE?
-                document.selection.empty();
+            } else if (document["selection"]) {  // IE?
+                document["selection"].empty();
             }
         },
 
@@ -13930,8 +13951,11 @@ $.noConflict = function() {
         counterDeferred: 0,
         duration: 2000,
         value: 0,
+        from: 0,
         timeout: 0,
         delimiter: ",",
+        prefix: "",
+        suffix: "",
         onStart: Metro.noop,
         onStop: Metro.noop,
         onTick: Metro.noop,
@@ -13959,53 +13983,77 @@ $.noConflict = function() {
         },
 
         _create: function(){
+            this._createEvents();
+            this._fireEvent("counter-create");
+            this._run();
+        },
+
+        _createEvents: function(){
             var that = this, element = this.element, o = this.options;
 
-            this._fireEvent("counter-create", {
-                element: element
-            });
+            $.window().on("scroll", function(){
+                if (o.startOnViewport === true && Utils.inViewport(element[0]) && !that.started) {
+                    that.start();
+                }
+            }, {ns: this.id})
+        },
+
+        _run: function(){
+            var element = this.element, o = this.options;
+
+            this.started = false;
 
             if (o.startOnViewport !== true) {
                 this.start();
-            }
-
-            if (o.startOnViewport === true) {
-                if (Utils.inViewport(element[0]) && !this.started) {
+            } else {
+                if (Utils.inViewport(element[0])) {
                     this.start();
                 }
-
-                $.window().on("scroll", function(){
-                    if (Utils.inViewport(element[0]) && !that.started) {
-                        that.start();
-                    }
-                }, {ns: this.id})
             }
         },
 
-        start: function(){
-            var element = this.element, o = this.options;
+        startInViewport: function(val, from){
+            var o = this.options;
+
+            if (Utils.isValue(from)) {
+                o.from = +from;
+            }
+
+            if (Utils.isValue(val)) {
+                o.value = +val;
+            }
+            this._run();
+        },
+
+        start: function(val, from){
+            var that = this, element = this.element, o = this.options;
+
+            if (Utils.isValue(from)) {
+                o.from = +from;
+            }
+
+            if (Utils.isValue(val)) {
+                o.value = +val;
+            }
 
             this.started = true;
 
-            Utils.exec(o.onStart, null, element[0]);
-            element.fire("start");
+            this._fireEvent("start");
 
             element.animate({
                 draw: {
-                    innerHTML: [0, +o.value]
+                    innerHTML: [o.from, o.value]
                 },
                 defer: o.timeout,
                 dur: o.duration,
                 onFrame: function () {
-                    Utils.exec(o.onTick, [+this.innerHTML], element[0]);
-                    element.fire("tick", {
+                    that._fireEvent("tick", {
                         value: +this.innerHTML
                     });
-                    this.innerHTML = Number(this.innerHTML).format(0, 0, o.delimiter)
+                    this.innerHTML = o.prefix + Number(this.innerHTML).format(0, 0, o.delimiter) + o.suffix
                 },
                 onDone: function(){
-                    Utils.exec(o.onStop, null, element[0]);
-                    element.fire("stop");
+                    that._fireEvent("stop");
                 }
             })
         },
@@ -14015,20 +14063,19 @@ $.noConflict = function() {
             this.element.html(this.html);
         },
 
-        setValueAttribute: function(){
-            this.options.value = this.element.attr("data-value");
-        },
+        changeAttribute: function(attr, val){
+            var o = this.options;
 
-        changeAttribute: function(attributeName){
-            if (attributeName === "data-value") {
-                this.setValueAttribute();
+            if (attr === "data-value") {
+                o.value = +val;
+            }
+            if (attr === "data-from") {
+                o.from = +val;
             }
         },
 
         destroy: function(){
-            if (this.options.startOnViewport === true) {
-                $.window().off("scroll", {ns: this.id});
-            }
+            $.window().off("scroll", {ns: this.id});
             return this.element;
         }
     });
@@ -22401,7 +22448,7 @@ $.noConflict = function() {
     'use strict';
     var Utils = Metro.utils;
     var ResizableDefaultConfig = {
-        resizeableDeferred: 0,
+        resizableDeferred: 0,
         canResize: true,
         resizeElement: ".resize-element",
         minWidth: 0,
@@ -22415,40 +22462,36 @@ $.noConflict = function() {
         onResizableCreate: Metro.noop
     };
 
-    Metro.resizeableSetup = function (options) {
+    Metro.resizableSetup = function (options) {
         ResizableDefaultConfig = $.extend({}, ResizableDefaultConfig, options);
     };
 
-    if (typeof window["metroResizeableSetup"] !== undefined) {
-        Metro.resizeableSetup(window["metroResizeableSetup"]);
+    if (typeof window["metroResizableSetup"] !== undefined) {
+        Metro.resizableSetup(window["metroResizableSetup"]);
     }
 
-    Metro.Component('resizeable', {
+    Metro.Component('resizable', {
         init: function( options, elem ) {
             this._super(elem, options, ResizableDefaultConfig, {
                 resizer: null,
-                id: Utils.elementId("resizeable")
+                id: Utils.elementId("resizable")
             });
 
             return this;
         },
 
         _create: function(){
-            var element = this.element;
-
             this._createStructure();
             this._createEvents();
 
-            this._fireEvent("resizeable-create", {
-                element: element
-            });
+            this._fireEvent("resizable-create");
         },
 
         _createStructure: function(){
             var element = this.element, o = this.options;
 
             element.data("canResize", true);
-            element.addClass("resizeable-element");
+            element.addClass("resizable-element");
 
             if (Utils.isValue(o.resizeElement) && element.find(o.resizeElement).length > 0) {
                 this.resizer = element.find(o.resizeElement);
@@ -33892,7 +33935,7 @@ $.noConflict = function() {
             }
 
             if (o._runtime === true) {
-                Metro.makeRuntime(element, "window");
+                this._runtime(element, "window");
             }
 
             win = this._window(o);
@@ -34294,7 +34337,7 @@ $.noConflict = function() {
             var element = this.element, win = this.win, o = this.options;
 
             if (a === "data-cls-window") {
-                win[0].className = "window " + (o.resizable ? " resizeable " : " ") + element.attr("data-cls-window");
+                win[0].className = "window " + (o.resizable ? " resizable " : " ") + element.attr("data-cls-window");
             }
             if (a === "data-cls-caption") {
                 win.find(".window-caption")[0].className = "window-caption " + element.attr("data-cls-caption");
