@@ -4,7 +4,7 @@ The front-end framework for developing projects on the web in Windows Metro Styl
 
 ## Current Version
 
-### 4.3.10
+### 4.4.1
 
 github repo: https://github.com/olton/Metro-UI-CSS
 
@@ -23,4 +23,4 @@ npm install metro4-dist@latest
 IE11+, Chrome, Firefox, Opera, Safari, Android, IOS
 
 # License
-Metro UI CSS has [MIT License](https://github.com/olton/Metro-UI-CSS/blob/master/LICENSE)
+Metro UI CSS has [MIT License](https://github.com/olton/metro4-dist/blob/master/LICENSE)
