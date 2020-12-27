@@ -1,7 +1,7 @@
 /*
- * Metro 4 Components Library v4.4.2  (https://metroui.org.ua)
+ * Metro 4 Components Library v4.4.3  (https://metroui.org.ua)
  * Copyright 2012-2020 Sergey Pimenov
- * Built at 08/11/2020 22:09:20
+ * Built at 27/12/2020 15:34:21
  * Licensed under MIT
  */
 (function (global, undefined) {
@@ -620,7 +620,7 @@ function isTouch() {
 
 /* global hasProp */
 
-var m4qVersion = "v1.0.9. Built at 19/10/2020 18:36:03";
+var m4qVersion = "v1.0.10. Built at 08/12/2020 00:01:48";
 
 /* eslint-disable-next-line */
 var matches = Element.prototype.matches
@@ -956,7 +956,10 @@ $.fn.extend({
         } else {
             this.each(function () {
                 var el = this;
-                if (typeof el.querySelectorAll !== "undefined") res = res.concat([].slice.call(el.querySelectorAll(s)));
+                if (typeof el.querySelectorAll === "undefined") {
+                    return ;
+                }
+                res = res.concat([].slice.call(el.querySelectorAll(s)));
             });
             result = $.merge($(), res);
         }
@@ -2310,7 +2313,6 @@ $.fn.extend({
 
     scrollTop: function(val){
         if (not(val)) {
-            
             return this.length === 0 ? undefined : this[0] === window ? pageYOffset : this[0].scrollTop;
         }
         return this.each(function(){
@@ -2677,7 +2679,7 @@ $.fn.extend({
             return attributes;
         }
 
-        if (typeof name === 'string' && val === undefined) {
+        if (arguments.length === 1 && typeof name === "string") {
             return this.length && this[0].nodeType === 1 && this[0].hasAttribute(name) ? this[0].getAttribute(name) : undefined;
         }
 
@@ -2803,11 +2805,12 @@ $.extend({
             if (hasProp(item, where)) {
                 return;
             }
+
             Object.defineProperty(item, where, {
                 configurable: true,
                 enumerable: true,
                 writable: true,
-                value: function prepend() {
+                value: function () {
                     var argArr = Array.prototype.slice.call(arguments),
                         docFrag = document.createDocumentFragment();
 
@@ -2828,6 +2831,7 @@ $.extend({
 
 var normalizeElements = function(s){
     var result;
+
     if (typeof s === "string") result = $.isSelector(s) ? $(s) : $.parseHTML(s);
     else if (s instanceof HTMLElement) result = [s];
     else if (isArrayLike(s)) result = s;
@@ -3099,7 +3103,7 @@ $.fn.extend({
 
 // Source: src/animation.js
 
-/* global $, not, camelCase, parseUnit, Promise, getUnit */
+/* global $, not, camelCase, parseUnit, Promise, getUnit, matches */
 
 $.extend({
     animation: {
@@ -3515,15 +3519,24 @@ var defaultAnimationProps = {
     pause: 0,
     dir: "normal",
     defer: 0,
+    onStart: function(){},
+    onStop: function(){},
+    onStopAll: function(){},
+    onPause: function(){},
+    onPauseAll: function(){},
+    onResume: function(){},
+    onResumeAll: function(){},
     onFrame: function(){},
     onDone: function(){}
 };
 
 function animate(args){
     return new Promise(function(resolve){
-        var that = this, start;
+        var that = this;
         var props = $.assign({}, defaultAnimationProps, {dur: $.animation.duration, ease: $.animation.ease}, args);
-        var id = props.id, el = props.el, draw = props.draw, dur = props.dur, ease = props.ease, loop = props.loop, onFrame = props.onFrame, onDone = props.onDone, pause = props.pause, dir = props.dir, defer = props.defer;
+        var id = props.id, el = props.el, draw = props.draw, dur = props.dur, ease = props.ease, loop = props.loop,
+            onStart = props.onStart, onFrame = props.onFrame, onDone = props.onDone,
+            pauseStart = props.pause, dir = props.dir, defer = props.defer;
         var map = {};
         var easeName = "linear", easeArgs = [], easeFn = Easing.linear, matchArgs;
         var direction = dir === "alternate" ? "normal" : dir;
@@ -3566,15 +3579,25 @@ function animate(args){
             id: null,
             stop: 0,
             pause: 0,
-            loop: 0
+            loop: 0,
+            t: -1,
+            started: 0,
+            paused: 0
         };
 
         var play = function() {
             if (typeof draw === "object") {
                 map = createAnimationMap(el, draw, direction);
             }
-            start = performance.now();
+
+            if (typeof onStart === "function") {
+                onStart.apply(el);
+            }
+
+            // start = performance.now();
             $.animation.elements[animationID].loop += 1;
+            $.animation.elements[animationID].started = performance.now();
+            $.animation.elements[animationID].duration = dur;
             $.animation.elements[animationID].id = requestAnimationFrame(animate);
         };
 
@@ -3592,38 +3615,46 @@ function animate(args){
         var animate = function(time) {
             var p, t;
             var stop = $.animation.elements[animationID].stop;
+            var pause = $.animation.elements[animationID].pause;
+            var start = $.animation.elements[animationID].started;
 
-            if ( stop > 0) {
-                if (stop === 2) {
-                    if (typeof draw === "function") {
-
-                        draw.bind(el)(1, 1);
-
-                    } else {
-
-                        applyProps(el, map, 1);
-
-                    }
-                }
-                done();
-                return;
+            if ($.animation.elements[animationID].paused) {
+                start = time - $.animation.elements[animationID].t * dur;
+                $.animation.elements[animationID].started = start;
             }
 
-            t = (time - start) / dur;
+            t = ((time - start) / dur).toFixed(4);
 
             if (t > 1) t = 1;
             if (t < 0) t = 0;
 
             p = easeFn.apply(null, easeArgs)(t);
 
+            $.animation.elements[animationID].t = t;
+            $.animation.elements[animationID].p = p;
+
+            if (pause) {
+                $.animation.elements[animationID].id = requestAnimationFrame(animate);
+                // $.animation.elements[animationID].started = performance.now();
+                return;
+            }
+
+            if ( stop > 0) {
+                if (stop === 2) {
+                    if (typeof draw === "function") {
+                        draw.bind(el)(1, 1);
+                    } else {
+                        applyProps(el, map, 1);
+                    }
+                }
+                done();
+                return;
+            }
+
             if (typeof draw === "function") {
-
                 draw.bind(el)(t, p);
-
             } else {
-
                 applyProps(el, map, p);
-
             }
 
             if (typeof onFrame === 'function') {
@@ -3643,12 +3674,12 @@ function animate(args){
                     if (typeof loop === "boolean") {
                         setTimeout(function () {
                             play();
-                        }, pause);
+                        }, pauseStart);
                     } else {
                         if (loop > $.animation.elements[animationID].loop) {
                             setTimeout(function () {
                                 play();
-                            }, pause);
+                            }, pauseStart);
                         } else {
                             done();
                         }
@@ -3674,17 +3705,128 @@ function animate(args){
     });
 }
 
-/* eslint-disable */
-function stop(id, done){
+// Stop animation
+function stopAnimation(id, done){
+    var an = $.animation.elements[id];
+
+    if (typeof an === "undefined") {
+        return ;
+    }
+
     if (not(done)) {
         done = true;
     }
-    $.animation.elements[id].stop = done === true ? 2 : 1;
+
+    an.stop = done === true ? 2 : 1;
+
+    if (typeof an.onStop === "function") {
+        an.onStop.apply(an.element);
+    }
 }
+
+function stopAnimationAll(done, filter){
+    $.each($.animation.elements, function(k, v){
+        if (filter) {
+            if (typeof filter === "string") {
+                if (matches.call(v.element, filter)) stopAnimation(k, done);
+            } else if (filter.length) {
+                $.each(filter, function(){
+                    if (v.element === this) stopAnimation(k, done);
+                });
+            } else if (filter instanceof Element) {
+                if (v.element === filter) stopAnimation(k, done);
+            }
+        } else {
+            stopAnimation(k, done);
+        }
+    });
+}
+// end of stop
+
+// Pause and resume animation
+function pauseAnimation(id){
+    var an = $.animation.elements[id];
+
+    if (typeof an === "undefined") {
+        return ;
+    }
+
+    an.pause = 1;
+    an.paused = performance.now();
+
+    if (typeof an.onPause === "function") {
+        an.onPause.apply(an.element);
+    }
+}
+
+function pauseAnimationAll(filter){
+    $.each($.animation.elements, function(k, v){
+        if (filter) {
+            if (typeof filter === "string") {
+                if (matches.call(v.element, filter)) pauseAnimation(k);
+            } else if (filter.length) {
+                $.each(filter, function(){
+                    if (v.element === this) pauseAnimation(k);
+                });
+            } else if (filter instanceof Element) {
+                if (v.element === filter) pauseAnimation(k);
+            }
+        } else {
+            pauseAnimation(k);
+        }
+    });
+}
+// end of pause
+
+function resumeAnimation(id){
+    var an = $.animation.elements[id];
+
+    if (typeof an === "undefined") {
+        return ;
+    }
+
+    an.pause = 0;
+    an.paused = 0;
+
+    if (typeof an.onResume === "function") {
+        an.onResume.apply(an.element);
+    }
+}
+
+function resumeAnimationAll(filter){
+    $.each($.animation.elements, function(k, v){
+        if (filter) {
+            if (typeof filter === "string") {
+                if (matches.call(v.element, filter)) resumeAnimation(k);
+            } else if (filter.length) {
+                $.each(filter, function(){
+                    if (v.element === this) resumeAnimation(k);
+                });
+            } else if (filter instanceof Element) {
+                if (v.element === filter) resumeAnimation(k);
+            }
+        } else {
+            resumeAnimation(k);
+        }
+    });
+}
+
 /* eslint-enable */
 
-function chain(arr, loop){
-    if (not(loop)) loop = false;
+var defaultChainOptions = {
+    loop: false,
+    onChainItem: null,
+    onChainItemComplete: null,
+    onChainComplete: null
+}
+
+function chain(arr, opt){
+    var o = $.extend({}, defaultChainOptions, opt);
+
+    if (typeof o.loop !== "boolean") {
+        o.loop--;
+    }
+
     if (!Array.isArray(arr)) {
         console.warn("Chain array is not defined!");
         return false;
@@ -3692,18 +3834,24 @@ function chain(arr, loop){
 
     var reducer = function(acc, item){
         return acc.then(function(){
-            return animate(item);
+            if (typeof o["onChainItem"] === "function") {
+                o["onChainItem"](item);
+            }
+            return animate(item).then(function(){
+                if (typeof o["onChainItemComplete"] === "function") {
+                    o["onChainItemComplete"](item);
+                }
+            });
         });
     };
 
     arr.reduce(reducer, Promise.resolve()).then(function(){
-        if (loop) {
-            if (typeof loop === "boolean") {
-                chain(arr, loop);
-            } else {
-                loop--;
-                chain(arr, loop);
-            }
+        if (typeof o["onChainComplete"] === "function") {
+            o["onChainComplete"]();
+        }
+
+        if (o.loop) {
+            chain(arr, o);
         }
     });
 }
@@ -3745,8 +3893,13 @@ $.extend({
 
         return animate(args);
     },
-    stop: stop,
-    chain: chain
+    chain: chain,
+    stop: stopAnimation,
+    stopAll: stopAnimationAll,
+    resume: resumeAnimation,
+    resumeAll: resumeAnimationAll,
+    pause: pauseAnimation,
+    pauseAll: pauseAnimationAll
 });
 
 $.fn.extend({
@@ -3836,12 +3989,33 @@ $.fn.extend({
      * @returns {this}
      */
     stop: function(done){
-        var elements = $.animation.elements;
         return this.each(function(){
             var el = this;
-            $.each(elements, function(k, o){
+            $.each($.animation.elements, function(k, o){
                 if (o.element === el) {
-                    stop(k, done);
+                    stopAnimation(k, done);
+                }
+            });
+        });
+    },
+
+    pause: function(){
+        return this.each(function(){
+            var el = this;
+            $.each($.animation.elements, function(k, o){
+                if (o.element === el) {
+                    pauseAnimation(k);
+                }
+            });
+        });
+    },
+
+    resume: function(){
+        return this.each(function(){
+            var el = this;
+            $.each($.animation.elements, function(k, o){
+                if (o.element === el) {
+                    resumeAnimation(k);
                 }
             });
         });
@@ -4354,7 +4528,7 @@ $.init = function(sel, ctx){
             try {
                 [].push.apply(this, document.querySelectorAll(sel));
             } catch (e) {
-                console.error(sel + " is not a valid selector");
+                //console.error(sel + " is not a valid selector");
             }
         } else {
             $.merge(this, parsed);
@@ -4536,12 +4710,13 @@ $.noConflict = function() {
 
     var Metro = {
 
-        version: "4.4.2",
-        compileTime: "08/11/2020 22:09:20",
-        buildNumber: "753",
+        version: "4.4.3",
+        compileTime: "27/12/2020 15:34:21",
+        buildNumber: "754",
         isTouchable: isTouch,
         fullScreenEnabled: document.fullscreenEnabled,
         sheet: null,
+
 
         controlsPosition: {
             INSIDE: "inside",
@@ -4708,6 +4883,7 @@ $.noConflict = function() {
         animations: null,
         cookie: null,
         template: null,
+        defaults: {},
 
         about: function(){
             var content =
@@ -4953,6 +5129,11 @@ $.noConflict = function() {
             }
         },
 
+        pluginExists: function(name){
+            var $ = window.useJQuery ? jQuery : m4q;
+            return typeof $.fn[normalizeComponentName(name)] === "function";
+        },
+
         destroyPlugin: function(element, name){
             var p, mc;
             var el = $(element);
@@ -5034,6 +5215,10 @@ $.noConflict = function() {
             return Metro.$()($(el)[0]);
         },
 
+        get$elements: function(el){
+            return Metro.$()($(el));
+        },
+
         getPlugin: function(el, name){
             var _name = normalizeComponentName(name);
             var $el = Metro.get$el(el);
@@ -5042,7 +5227,7 @@ $.noConflict = function() {
 
         makePlugin: function(el, name, options){
             var _name = normalizeComponentName(name);
-            var $el = Metro.get$el(el);
+            var $el = Metro.get$elements(el);
             return $el.length && typeof $el[_name] === "function" ? $el[_name](options) : undefined;
         },
 
@@ -5088,6 +5273,8 @@ $.noConflict = function() {
                     var element = this.element, mc;
                     var roles = (element.attr("data-role") || "").toArray(",").map(function(v){
                         return normalizeComponentName(v);
+                    }).filter(function(v){
+                        return v.trim() !== "";
                     });
 
                     if (!element.attr('data-role-'+this.name)) {
@@ -5141,6 +5328,34 @@ $.noConflict = function() {
                     return Utils.exec(o["on"+event], _data, element[0]);
                 },
 
+                _fireEvents: function(events, data, log, noFire){
+                    var that = this, _events;
+
+                    if (arguments.length === 0) {
+                        return ;
+                    }
+
+                    if (arguments.length === 1) {
+
+                        $.each(events, function () {
+                            var ev = this;
+                            that._fireEvent(ev.name, ev.data, ev.log, ev.noFire);
+                        });
+
+                        return Utils.objectLength(events);
+                    }
+
+                    if (!Array.isArray(events) && typeof events !== "string") {
+                        return ;
+                    }
+
+                    _events = Array.isArray(events) ? events : events.toArray(",");
+
+                    $.each(_events, function(){
+                        that._fireEvent(this, data, log, noFire);
+                    });
+                },
+
                 getComponent: function(){
                     return this.component;
                 },
@@ -5179,47 +5394,6 @@ $.noConflict = function() {
 
 
 (function(Metro, $) {
-    $.extend(Metro.locales, {
-        'cn-ZH': {
-            "calendar": {
-                "months": [
-                    "一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月",
-                    "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"
-                ],
-                "days": [
-                    "星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六",
-                    "日", "一", "二", "三", "四", "五", "六",
-                    "周日", "周一", "周二", "周三", "周四", "周五", "周六"
-                ],
-                "time": {
-                    "days": "天",
-                    "hours": "时",
-                    "minutes": "分",
-                    "seconds": "秒",
-                    "month": "月",
-                    "day": "日",
-                    "year": "年"
-                }
-            },
-            "buttons": {
-                "ok": "确认",
-                "cancel": "取消",
-                "done": "完成",
-                "today": "今天",
-                "now": "现在",
-                "clear": "清除",
-                "help": "帮助",
-                "yes": "是",
-                "no": "否",
-                "random": "随机",
-                "save": "保存",
-                "reset": "重啟"
-            }
-        }
-    });
-}(Metro, m4q));
-
-(function(Metro, $) {
     $.extend(Metro['locales'], {
         'da-DK': {
             "calendar": {
@@ -5255,6 +5429,21 @@ $.noConflict = function() {
                 "random": "Tilfældig",
                 "save": "Gem",
                 "reset": "Nulstil"
+            },
+            "table": {
+                "rowsCount": "Show entries:",
+                "search": "Search:",
+                "info": "Showing $1 to $2 of $3 entries",
+                "prev": "Prev",
+                "next": "Next",
+                "all": "All",
+                "inspector": "Inspector",
+                "skip": "Goto page",
+                "empty": "Nothing to show"
+            },
+            "colorSelector": {
+                addUserColorButton: "ADD TO SWATCHES",
+                userColorsTitle: "USER COLORS"
             }
         }
     });
@@ -5293,6 +5482,21 @@ $.noConflict = function() {
                 "random": "Zufällig",
                 "save": "Speichern",
                 "reset": "Zurücksetzen"
+            },
+            "table": {
+                "rowsCount": "Show entries:",
+                "search": "Search:",
+                "info": "Showing $1 to $2 of $3 entries",
+                "prev": "Prev",
+                "next": "Next",
+                "all": "All",
+                "inspector": "Inspector",
+                "skip": "Goto page",
+                "empty": "Nothing to show"
+            },
+            "colorSelector": {
+                addUserColorButton: "ADD TO SWATCHES",
+                userColorsTitle: "USER COLORS"
             }
         }
     });
@@ -5334,6 +5538,21 @@ $.noConflict = function() {
                 "random": "Random",
                 "save": "Save",
                 "reset": "Reset"
+            },
+            "table": {
+                "rowsCount": "Show entries:",
+                "search": "Search:",
+                "info": "Showing $1 to $2 of $3 entries",
+                "prev": "Prev",
+                "next": "Next",
+                "all": "All",
+                "inspector": "Inspector",
+                "skip": "Goto page",
+                "empty": "Nothing to show"
+            },
+            "colorSelector": {
+                addUserColorButton: "ADD TO SWATCHES",
+                userColorsTitle: "USER COLORS"
             }
         }
     });
@@ -5375,6 +5594,21 @@ $.noConflict = function() {
                 "random": "Aleatorio",
                 "save": "Salvar",
                 "reset": "Reiniciar"
+            },
+            "table": {
+                "rowsCount": "Show entries:",
+                "search": "Search:",
+                "info": "Showing $1 to $2 of $3 entries",
+                "prev": "Prev",
+                "next": "Next",
+                "all": "All",
+                "inspector": "Inspector",
+                "skip": "Goto page",
+                "empty": "Nothing to show"
+            },
+            "colorSelector": {
+                addUserColorButton: "ADD TO SWATCHES",
+                userColorsTitle: "USER COLORS"
             }
         }
     });
@@ -5416,10 +5650,82 @@ $.noConflict = function() {
                 "random": "Aléatoire",
                 "save": "Sauvegarder",
                 "reset": "Réinitialiser"
+            },
+            "table": {
+                "rowsCount": "Show entries:",
+                "search": "Search:",
+                "info": "Showing $1 to $2 of $3 entries",
+                "prev": "Prev",
+                "next": "Next",
+                "all": "All",
+                "inspector": "Inspector",
+                "skip": "Goto page",
+                "empty": "Nothing to show"
+            },
+            "colorSelector": {
+                addUserColorButton: "ADD TO SWATCHES",
+                userColorsTitle: "USER COLORS"
             }
         }
     });
 }(Metro, m4q));
+
+(function(Metro, $) {
+    $.extend(Metro.locales, {
+        'hr-HR': {
+            "calendar": {
+                "months": [
+                    "Siječanj", "Veljača", "Ožujak", "Travanj", "Svibanj", "Lipanj", "Srpanj", "Kolovoz", "Rujan", "Listopad", "Studeni", "Prosinac",
+                    "Sij", "Velj", "Ožu", "Tra", "Svi", "Lip", "Srp", "Kol", "Ruj", "Lis", "Stu", "Pro"
+                ],
+                "days": [
+                    "Nedjelja","Ponedjeljak","Utorak", "Srijeda", "Četvrtak", "Petak", "Subota",  
+                    "Ne","Po", "Ut", "Sr", "Če", "Pe", "Su", 
+                    "Ned", "Pon", "Uto", "Sri", "Čet", "Pet", "Sub" 
+                ],
+                "time": {
+                    "days": "DANI",
+                    "hours": "SATI",
+                    "minutes": "MINUTE",
+                    "seconds": "SEKUNDE",
+                    "month": "MJESEC",
+                    "day": "DAN",
+                    "year": "GODINA"
+                }
+            },
+            "buttons": {
+                "ok": "OK",
+                "cancel": "Otkaži",
+                "done": "Gotovo",
+                "today": "Danas",
+                "now": "Sada",
+                "clear": "Izbriši",
+                "help": "Pomoć",
+                "yes": "Da",
+                "no": "Ne",
+                "random": "Nasumično",
+                "save": "Spremi",
+                "reset": "Reset"
+            },
+            "table": {
+                "rowsCount": "Broj redaka:",
+                "search": "Pretraga:",
+                "info": "Prikazujem $1 do $2 od $3",
+                "prev": "Nazad",
+                "next": "Naprijed",
+                "all": "Sve",
+                "inspector": "Inspektor",
+                "skip": "Idi na stranicu",
+                "empty": "Prazno"
+            },
+            "colorSelector": {
+                addUserColorButton: "Dodaj uzorcima",
+                userColorsTitle: "Korisničke boje"
+            }
+        }
+    });
+}(Metro, m4q));
+
 
 (function(Metro, $) {
     $.extend(Metro.locales, {
@@ -5454,6 +5760,21 @@ $.noConflict = function() {
                 "random": "Véletlen",
                 "save": "Mentés",
                 "reset": "Visszaállítás"
+            },
+            "table": {
+                "rowsCount": "Show entries:",
+                "search": "Search:",
+                "info": "Showing $1 to $2 of $3 entries",
+                "prev": "Prev",
+                "next": "Next",
+                "all": "All",
+                "inspector": "Inspector",
+                "skip": "Goto page",
+                "empty": "Nothing to show"
+            },
+            "colorSelector": {
+                addUserColorButton: "ADD TO SWATCHES",
+                userColorsTitle: "USER COLORS"
             }
         }
     });
@@ -5495,6 +5816,21 @@ $.noConflict = function() {
                 "random": "Random",
                 "save": "Salvare",
                 "reset": "Reset"
+            },
+            "table": {
+                "rowsCount": "Show entries:",
+                "search": "Search:",
+                "info": "Showing $1 to $2 of $3 entries",
+                "prev": "Prev",
+                "next": "Next",
+                "all": "All",
+                "inspector": "Inspector",
+                "skip": "Goto page",
+                "empty": "Nothing to show"
+            },
+            "colorSelector": {
+                addUserColorButton: "ADD TO SWATCHES",
+                userColorsTitle: "USER COLORS"
             }
         }
     });
@@ -5536,6 +5872,21 @@ $.noConflict = function() {
                 "random": "Aleatório",
                 "save": "Salvar",
                 "reset": "Restaurar"
+            },
+            "table": {
+                "rowsCount": "Show entries:",
+                "search": "Search:",
+                "info": "Showing $1 to $2 of $3 entries",
+                "prev": "Prev",
+                "next": "Next",
+                "all": "All",
+                "inspector": "Inspector",
+                "skip": "Goto page",
+                "empty": "Nothing to show"
+            },
+            "colorSelector": {
+                addUserColorButton: "ADD TO SWATCHES",
+                userColorsTitle: "USER COLORS"
             }
         }
     });
@@ -5577,6 +5928,21 @@ $.noConflict = function() {
                 "random": "Случайно",
                 "save": "Сохранить",
                 "reset": "Сброс"
+            },
+            "table": {
+                "rowsCount": "Показать записей:",
+                "search": "Поиск:",
+                "info": "Показаны $1 с $2 по $3 записей",
+                "prev": "Предыдущие",
+                "next": "Следующие",
+                "all": "Все",
+                "inspector": "Инспектор",
+                "skip": "Перейти на страницу",
+                "empty": "Нет записей"
+            },
+            "colorSelector": {
+                addUserColorButton: "ДОБАВИТЬ В ОБРАЗЦЫ",
+                userColorsTitle: "ЦВЕТА ПОЛЬЗОВАТЕЛЯ"
             }
         }
     });
@@ -5618,47 +5984,21 @@ $.noConflict = function() {
                 "random": "Rasgele",
                 "save": "Kurtarmak",
                 "reset": "Sıfırla"
-            }
-        }
-    });
-}(Metro, m4q));
-
-(function(Metro, $) {
-    $.extend(Metro.locales, {
-        'tw-ZH': {
-            "calendar": {
-                "months": [
-                    "一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月",
-                    "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"
-                ],
-                "days": [
-                    "星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六",
-                    "日", "一", "二", "三", "四", "五", "六",
-                    "週日", "週一", "週二", "週三", "週四", "週五", "週六"
-                ],
-                "time": {
-                    "days": "天",
-                    "hours": "時",
-                    "minutes": "分",
-                    "seconds": "秒",
-                    "month": "月",
-                    "day": "日",
-                    "year": "年"
-                }
             },
-            "buttons": {
-                "ok": "確認",
-                "cancel": "取消",
-                "done": "完成",
-                "today": "今天",
-                "now": "現在",
-                "clear": "清除",
-                "help": "幫助",
-                "yes": "是",
-                "no": "否",
-                "random": "隨機",
-                "save": "保存",
-                "reset": "重啟"
+            "table": {
+                "rowsCount": "Show entries:",
+                "search": "Search:",
+                "info": "Showing $1 to $2 of $3 entries",
+                "prev": "Prev",
+                "next": "Next",
+                "all": "All",
+                "inspector": "Inspector",
+                "skip": "Goto page",
+                "empty": "Nothing to show"
+            },
+            "colorSelector": {
+                addUserColorButton: "ADD TO SWATCHES",
+                userColorsTitle: "USER COLORS"
             }
         }
     });
@@ -5700,6 +6040,133 @@ $.noConflict = function() {
                 "random": "Випадково",
                 "save": "Зберегти",
                 "reset": "Скинути"
+            },
+            "table": {
+                "rowsCount": "Показати записів:",
+                "search": "Пошук:",
+                "info": "Показано $1 з $2 по $3 записів",
+                "prev": "Попередні",
+                "next": "Наступні",
+                "all": "Усі",
+                "inspector": "Інспектор",
+                "skip": "Перейти до сторінки",
+                "empty": "Нема записів"
+            },
+            "colorSelector": {
+                addUserColorButton: "ДОДАТИ В ЗРАЗКИ",
+                userColorsTitle: "КОЛІРИ КОРИСТУВАЧА"
+            }
+        }
+    });
+}(Metro, m4q));
+
+(function(Metro, $) {
+    $.extend(Metro.locales, {
+        'zh-CN': {
+            "calendar": {
+                "months": [
+                    "一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月",
+                    "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"
+                ],
+                "days": [
+                    "星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六",
+                    "日", "一", "二", "三", "四", "五", "六",
+                    "周日", "周一", "周二", "周三", "周四", "周五", "周六"
+                ],
+                "time": {
+                    "days": "天",
+                    "hours": "时",
+                    "minutes": "分",
+                    "seconds": "秒",
+                    "month": "月",
+                    "day": "日",
+                    "year": "年"
+                }
+            },
+            "buttons": {
+                "ok": "确认",
+                "cancel": "取消",
+                "done": "完成",
+                "today": "今天",
+                "now": "现在",
+                "clear": "清除",
+                "help": "帮助",
+                "yes": "是",
+                "no": "否",
+                "random": "随机",
+                "save": "保存",
+                "reset": "重啟"
+            },
+            "table": {
+                "rowsCount": "Show entries:",
+                "search": "Search:",
+                "info": "Showing $1 to $2 of $3 entries",
+                "prev": "Prev",
+                "next": "Next",
+                "all": "All",
+                "inspector": "Inspector",
+                "skip": "Goto page",
+                "empty": "Nothing to show"
+            },
+            "colorSelector": {
+                addUserColorButton: "ADD TO SWATCHES",
+                userColorsTitle: "USER COLORS"
+            }
+        }
+    });
+}(Metro, m4q));
+
+(function(Metro, $) {
+    $.extend(Metro.locales, {
+        'zh-TW': {
+            "calendar": {
+                "months": [
+                    "一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月",
+                    "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"
+                ],
+                "days": [
+                    "星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六",
+                    "日", "一", "二", "三", "四", "五", "六",
+                    "週日", "週一", "週二", "週三", "週四", "週五", "週六"
+                ],
+                "time": {
+                    "days": "天",
+                    "hours": "時",
+                    "minutes": "分",
+                    "seconds": "秒",
+                    "month": "月",
+                    "day": "日",
+                    "year": "年"
+                }
+            },
+            "buttons": {
+                "ok": "確認",
+                "cancel": "取消",
+                "done": "完成",
+                "today": "今天",
+                "now": "現在",
+                "clear": "清除",
+                "help": "幫助",
+                "yes": "是",
+                "no": "否",
+                "random": "隨機",
+                "save": "保存",
+                "reset": "重啟"
+            },
+            "table": {
+                "rowsCount": "Show entries:",
+                "search": "Search:",
+                "info": "Showing $1 to $2 of $3 entries",
+                "prev": "Prev",
+                "next": "Next",
+                "all": "All",
+                "inspector": "Inspector",
+                "skip": "Goto page",
+                "empty": "Nothing to show"
+            },
+            "colorSelector": {
+                addUserColorButton: "ADD TO SWATCHES",
+                userColorsTitle: "USER COLORS"
             }
         }
     });
@@ -5783,7 +6250,7 @@ $.noConflict = function() {
     Date.prototype.getWeek = function (dowOffset) {
         var nYear, nday, newYear, day, daynum, weeknum;
 
-        dowOffset = !Utils.isValue(dowOffset) ? METRO_WEEK_START : typeof dowOffset === 'number' ? parseInt(dowOffset) : 0;
+        dowOffset = typeof dowOffset === "undefined" || isNaN(dowOffset) ? METRO_WEEK_START : typeof dowOffset === 'number' ? parseInt(dowOffset) : 0;
         newYear = new Date(this.getFullYear(),0,1);
         day = newYear.getDay() - dowOffset;
         day = (day >= 0 ? day : day + 7);
@@ -6825,6 +7292,28 @@ $.noConflict = function() {
 
         decCount: function(v){
             return v % 1 === 0 ? 0 : v.toString().split(".")[1].length;
+        },
+
+        /**
+         * Add symbols to string on the left side
+         * @param str Where
+         * @param pad what
+         * @param length to length
+         */
+        lpad: function(str, pad, length){
+            var _str = ""+str;
+            if (length && _str.length >= length) {
+                return _str;
+            }
+            return Array((length + 1) - _str.length).join(pad) + _str;
+        },
+
+        rpad: function(str, pad, length){
+            var _str = ""+str;
+            if (length && _str.length >= length) {
+                return _str;
+            }
+            return _str + Array((length + 1) - _str.length).join(pad);
         }
     };
 
@@ -8670,6 +9159,26 @@ $.noConflict = function() {
     'use strict';
     var Utils = Metro.utils;
     var CalendarDefaultConfig = {
+        showCoincidentalDay: true,
+        events: null,
+        startContent: "days",
+        showTime: false,
+        initialTime: null,
+        initialHours: null,
+        initialMinutes: null,
+        clsCalendarTime: "",
+        clsTime: "",
+        clsTimeHours: "",
+        clsTimeMinutes: "",
+        clsTimeButton: "",
+        clsTimeButtonPlus: "",
+        clsTimeButtonMinus: "",
+        labelTimeHours: null,
+        labelTimeMinutes: null,
+
+        animationContent: true,
+        animationSpeed: 10,
+
         calendarDeferred: 0,
         dayBorder: false,
         excludeDay: null,
@@ -8706,6 +9215,7 @@ $.noConflict = function() {
         clsTodayButton: "",
         clsClearButton: "",
         clsDoneButton: "",
+        clsEventCounter: "",
         isDialog: false,
         ripple: false,
         rippleColor: "#cccccc",
@@ -8724,11 +9234,16 @@ $.noConflict = function() {
         onClear: Metro.noop,
         onDone: Metro.noop,
         onDayClick: Metro.noop,
-        onDayDraw: Metro.noop,
+        onDrawDay: Metro.noop,
+        onDrawMonth: Metro.noop,
+        onDrawYear: Metro.noop,
         onWeekDayClick: Metro.noop,
         onWeekNumberClick: Metro.noop,
         onMonthChange: Metro.noop,
         onYearChange: Metro.noop,
+        onTimeChange: Metro.noop,
+        onHoursChange: Metro.noop,
+        onMinutesChange: Metro.noop,
         onCalendarCreate: Metro.noop
     };
 
@@ -8759,13 +9274,18 @@ $.noConflict = function() {
                 exclude: [],
                 special: [],
                 excludeDay: [],
+                events: [],
                 min: null,
                 max: null,
                 locale: null,
                 minYear: null,
                 maxYear: null,
                 offset: null,
-                id: Utils.elementId("calendar")
+                id: Utils.elementId("calendar"),
+                time: [new Date().getHours(), new Date().getMinutes()],
+                content: "days",
+                yearDistance: 11,
+                yearGroupStart: now.getFullYear()
             });
 
             return this;
@@ -8774,11 +9294,24 @@ $.noConflict = function() {
         _create: function(){
             var element = this.element, o = this.options;
 
+            this.content = o.startContent;
             this.minYear = this.current.year - this.options.yearsBefore;
             this.maxYear = this.current.year + this.options.yearsAfter;
             this.offset = (new Date()).getTimezoneOffset() / 60 + 1;
 
             element.html("").addClass("calendar " + (o.compact === true ? "compact" : "")).addClass(o.clsCalendar);
+
+            if (Utils.isValue(o.initialTime)) {
+                this.time = o.initialTime.split(":");
+            }
+
+            if (Utils.isValue(o.initialHours) && Utils.between(o.initialHours, 0, 23, true)) {
+                this.time[0] = parseInt(o.initialHours);
+            }
+
+            if (Utils.isValue(o.initialMinutes) && Utils.between(o.initialMinutes, 0, 59, true)) {
+                this.time[1] = parseInt(o.initialMinutes);
+            }
 
             if (o.dayBorder === true) {
                 element.addClass("day-border");
@@ -8798,6 +9331,10 @@ $.noConflict = function() {
 
             if (Utils.isValue(o.special)) {
                 this._dates2array(o.special, 'special');
+            }
+
+            if (Utils.isValue(o.events)) {
+                this._dates2array(o.events, 'events');
             }
 
             if (o.buttons !== false) {
@@ -8890,15 +9427,13 @@ $.noConflict = function() {
                 }
             }, {ns: this.id});
 
-            element.on(Metro.events.click, function(){
-                var months = element.find(".calendar-months");
-                var years = element.find(".calendar-years");
-                if (months.hasClass("open")) {
-                    months.removeClass("open");
+            element.on(Metro.events.click, ".prev-year-group, .next-year-group", function(){
+                if ($(this).hasClass("prev-year-group")) {
+                    that.yearGroupStart -= that.yearDistance;
+                } else {
+                    that.yearGroupStart += that.yearDistance;
                 }
-                if (years.hasClass("open")) {
-                    years.removeClass("open");
-                }
+                that._drawContent();
             });
 
             element.on(Metro.events.click, ".prev-month, .next-month, .prev-year, .next-year", function(){
@@ -8952,12 +9487,15 @@ $.noConflict = function() {
             element.on(Metro.events.click, ".button.today", function(){
                 that.toDay();
                 that._fireEvent("today", {
-                    today: that.today
+                    today: that.today,
+                    time: that.time
                 });
             });
 
             element.on(Metro.events.click, ".button.clear", function(){
                 that.selected = [];
+                that.time = [new Date().getHours(), new Date().getMinutes()];
+                that.yearGroupStart = new Date().getFullYear();
                 that._drawContent();
                 that._fireEvent("clear");
             });
@@ -8969,7 +9507,10 @@ $.noConflict = function() {
 
             element.on(Metro.events.click, ".button.done", function(){
                 that._drawContent();
-                that._fireEvent("done");
+                that._fireEvent("done", {
+                    selected: that.selected,
+                    time: that.time
+                });
             });
 
             if (o.weekDayClick === true) {
@@ -9086,7 +9627,8 @@ $.noConflict = function() {
 
                 that._fireEvent("day-click", {
                     selected: that.selected,
-                    day: day
+                    day: day,
+                    time: that.time
                 });
 
                 e.preventDefault();
@@ -9094,32 +9636,17 @@ $.noConflict = function() {
             });
 
             element.on(Metro.events.click, ".curr-month", function(e){
-                var target;
-                var list = element.find(".months-list");
-
-                list.find(".active").removeClass("active");
-                list.scrollTop(0);
-                element.find(".calendar-months").addClass("open");
-
-                target = list.find(".js-month-"+that.current.month).addClass("active");
-
-                setTimeout(function(){
-                    list.animate({
-                        draw: {
-                            scrollTop: target.position().top - ( (list.height() - target.height() )/ 2)
-                        },
-                        dur: 200
-                    })
-                }, 300);
+                that.content = "months";
+                that._drawContent();
 
                 e.preventDefault();
                 e.stopPropagation();
             });
 
-            element.on(Metro.events.click, ".calendar-months li", function(e){
-                that.current.month = $(this).index();
+            element.on(Metro.events.click, ".month", function(e){
+                that.current.month = parseInt($(this).attr("data-month"));
+                that.content = "days";
                 that._drawContent();
-                element.find(".calendar-months").removeClass("open");
 
                 that._fireEvent("month-change", {
                     current: that.current
@@ -9130,32 +9657,21 @@ $.noConflict = function() {
             });
 
             element.on(Metro.events.click, ".curr-year", function(e){
-                var target;
-                var list = element.find(".years-list");
-
-                list.find(".active").removeClass("active");
-                list.scrollTop(0);
-                element.find(".calendar-years").addClass("open");
-
-                target = list.find(".js-year-"+that.current.year).addClass("active");
-
-                setTimeout(function(){
-                    list.animate({
-                        draw: {
-                            scrollTop: target.position().top - ( (list.height() - target.height() )/ 2)
-                        },
-                        dur: 200
-                    })
-                }, 300);
+                if (that.content === "years") {
+                    return ;
+                }
+                that.content = "years";
+                that._drawContent();
 
                 e.preventDefault();
                 e.stopPropagation();
             });
 
-            element.on(Metro.events.click, ".calendar-years li", function(e){
-                that.current.year = $(this).text();
+            element.on(Metro.events.click, ".year", function(e){
+                that.current.year = parseInt($(this).attr("data-year"));
+                that.yearGroupStart = that.current.year;
+                that.content = "months";
                 that._drawContent();
-                element.find(".calendar-years").removeClass("open");
 
                 that._fireEvent("year-change", {
                     current: that.current
@@ -9211,36 +9727,81 @@ $.noConflict = function() {
             }
         },
 
-        _drawMonths: function(){
-            var element = this.element, o = this.options;
-            var months = $("<div>").addClass("calendar-months").addClass(o.clsCalendarMonths).appendTo(element);
-            var list = $("<ul>").addClass("months-list").appendTo(months);
-            var calendar_locale = this.locale['calendar'];
-            var i;
-            for(i = 0; i < 12; i++) {
-                $("<li>").addClass("js-month-"+i).html(calendar_locale['months'][i]).appendTo(list);
+        _drawTime: function(){
+            var that = this, element = this.element, o = this.options;
+            var calendarContent = element.find(".calendar-content");
+            var time = $("<div>").addClass("calendar-time").addClass(o.clsCalendarTime).appendTo(calendarContent);
+            var inner, hours, minutes, row;
+            var h = ""+this.time[0];
+            var m = ""+this.time[1];
+            var locale = this.locale['calendar']['time'];
+
+            var onChange = function(val){
+                var value = parseInt(val);
+                if ($(this).attr("data-time-part") === "hours") {
+                    that.time[0] = value;
+                    that._fireEvent("hours-change", {
+                        time: that.time,
+                        hours: value
+                    });
+                } else {
+                    that.time[1] = value;
+                    that._fireEvent("minutes-change", {
+                        time: that.time,
+                        minutes: value
+                    });
+                }
+
+                that._fireEvent("time-change", {
+                    time: that.time
+                });
+            }
+
+            time.append( inner = $("<div>").addClass("calendar-time__inner") );
+
+            inner.append( row = $("<div>").addClass("calendar-time__inner-row") );
+            row.append( $("<div>").addClass("calendar-time__inner-cell").append( $("<span>").html(o.labelTimeHours || locale['hours']) ));
+            row.append( $("<div>").addClass("calendar-time__inner-cell").append( $("<span>").html(o.labelTimeMinutes || locale['minutes']) ));
+
+            time.append( inner = $("<div>").addClass("calendar-time__inner spinners").addClass(o.clsTime) );
+            inner.append( hours = $("<input type='text' data-cls-spinner-input='"+o.clsTimeHours+"' data-time-part='hours' data-buttons-position='right' data-min-value='0' data-max-value='23'>").addClass("hours").addClass(o.compact ? "input-small" : "input-normal") );
+            inner.append( minutes = $("<input type='text' data-cls-spinner-input='"+o.clsTimeMinutes+"' data-time-part='minutes' data-buttons-position='right' data-min-value='0' data-max-value='59'>").addClass("minutes").addClass(o.compact ? "input-small" : "input-normal") );
+
+            h = Utils.lpad(h, "0", 2);
+            m = Utils.lpad(m, "0", 2);
+
+            hours.val(h);
+            minutes.val(m);
+
+            inner.find("input[type=text]").spinner({
+                onChange: onChange,
+                clsSpinnerButton: o.clsTimeButton,
+                clsSpinnerButtonPlus: o.clsTimeButtonPlus,
+                clsSpinnerButtonMinus: o.clsTimeButtonMinus
+            });
+
+            if (o.showTime === false) {
+                time.hide();
             }
         },
 
-        _drawYears: function(){
-            var element = this.element, o = this.options;
-            var years = $("<div>").addClass("calendar-years").addClass(o.clsCalendarYears).appendTo(element);
-            var list = $("<ul>").addClass("years-list").appendTo(years);
-            var i;
-            for(i = this.minYear; i <= this.maxYear; i++) {
-                $("<li>").addClass("js-year-"+i).html(i).appendTo(list);
-            }
-        },
-
-        _drawContent: function(){
+        _drawContentDays: function(){
             var element = this.element, o = this.options;
             var content = element.find(".calendar-content"), toolbar;
             var calendar_locale = this.locale['calendar'];
             var i, j, d, s, counter = 0;
             var first = new Date(this.current.year, this.current.month, 1);
-            var first_day;
+            var first_day, first_time, today = {
+                year: this.today.getFullYear(),
+                month: this.today.getMonth(),
+                day: this.today.getDate(),
+                time: this.today.getTime()
+            };
             var prev_month_days = (new Date(this.current.year, this.current.month, 0)).getDate();
-            var year, month;
+            var year, month, eventsCount, totalDays = 0;
+            var min_time = this.min ? this.min.getTime() : null,
+                max_time = this.max ? this.max.getTime() : null,
+                show_time= this.show ? this.show.getTime() : null;
 
             if (content.length === 0) {
                 content = $("<div>").addClass("calendar-content").addClass(o.clsCalendarContent).appendTo(element);
@@ -9302,9 +9863,14 @@ $.noConflict = function() {
                 $("<div>").addClass("week-number").html((new Date(year, month, prev_month_days - first_day + 1)).getWeek(o.weekStart)).appendTo(days_row);
             }
 
+            // Days for previous month
             for(i = 0; i < first_day; i++) {
                 var v = prev_month_days - first_day + i + 1;
                 d = $("<div>").addClass(day_class+" outside").appendTo(days_row);
+                totalDays++;
+                if (o.animationContent) {
+                    d.addClass("to-animate");
+                }
 
                 s = new Date(year, month, v);
                 s.setHours(0,0,0,0);
@@ -9320,8 +9886,11 @@ $.noConflict = function() {
                         }
                     }
 
-                    this._fireEvent("day-draw", {
+                    this._fireEvent("draw-day", {
                         date: s,
+                        day: s.getDate(),
+                        month: s.getMonth(),
+                        year: s.getFullYear(),
                         cell: d[0]
                     });
                 }
@@ -9329,34 +9898,47 @@ $.noConflict = function() {
                 counter++;
             }
 
+            // Days for current month
             first.setHours(0,0,0,0);
+
             while(first.getMonth() === this.current.month) {
+                first_time = first.getTime();
 
                 d = $("<div>").addClass(day_class).html(first.getDate()).appendTo(days_row);
 
-                d.data('day', first.getTime());
+                totalDays++;
 
-                if (this.show.getTime() === first.getTime()) {
+                if (o.animationContent) {
+                    d.addClass("to-animate");
+                }
+
+                if (first.getDate() === today.day && first_time !== today.time && o.showCoincidentalDay) {
+                    d.addClass("coincidental");
+                }
+
+                d.data('day', first_time);
+
+                if (show_time && show_time === first_time) {
                     d.addClass("showed");
                 }
 
-                if (this.today.getTime() === first.getTime()) {
+                if (today.time === first_time) {
                     d.addClass("today").addClass(o.clsToday);
                 }
 
                 if (this.special.length === 0) {
 
-                    if (this.selected.indexOf(first.getTime()) !== -1) {
+                    if (this.selected.length && this.selected.indexOf(first_time) !== -1) {
                         d.addClass("selected").addClass(o.clsSelected);
                     }
-                    if (this.exclude.indexOf(first.getTime()) !== -1) {
+                    if (this.exclude.length && this.exclude.indexOf(first_time) !== -1) {
                         d.addClass("disabled excluded").addClass(o.clsExcluded);
                     }
 
-                    if (this.min !== null && first.getTime() < this.min.getTime()) {
+                    if (min_time && first_time < min_time) {
                         d.addClass("disabled excluded").addClass(o.clsExcluded);
                     }
-                    if (this.max !== null && first.getTime() > this.max.getTime()) {
+                    if (max_time && first_time > max_time) {
                         d.addClass("disabled excluded").addClass(o.clsExcluded);
                     }
 
@@ -9367,14 +9949,30 @@ $.noConflict = function() {
                     }
                 } else {
 
-                    if (this.special.indexOf(first.getTime()) === -1) {
+                    if (this.special.length && this.special.indexOf(first_time) === -1) {
                         d.addClass("disabled excluded").addClass(o.clsExcluded);
                     }
 
                 }
 
-                this._fireEvent("day-draw", {
+                if (this.events.length) {
+                    eventsCount = 0;
+                    $.each(this.events, function(){
+                        if (this === first_time) {
+                            eventsCount++;
+                        }
+                    });
+
+                    if (eventsCount) {
+                        d.append( $("<div>").addClass("badge inside").addClass(o.clsEventCounter).html(eventsCount) );
+                    }
+                }
+
+                this._fireEvent("draw-day", {
                     date: first,
+                    day: first.getDate(),
+                    month: first.getMonth(),
+                    year: first.getFullYear(),
                     cell: d[0]
                 });
 
@@ -9389,7 +9987,8 @@ $.noConflict = function() {
                 first.setHours(0,0,0,0);
             }
 
-            first_day = o.weekStart === 0 ? first.getDay() : (first.getDay() === 0 ? 6 : first.getDay() - 1);
+            // Days for next month
+            //first_day = o.weekStart === 0 ? first.getDay() : (first.getDay() === 0 ? 6 : first.getDay() - 1);
 
             if (this.current.month + 1 > 11) {
                 month = 0;
@@ -9399,8 +9998,14 @@ $.noConflict = function() {
                 year = this.current.year;
             }
 
-            if (first_day > 0) for(i = 0; i < 7 - first_day; i++) {
+//            if (first_day > 0) for(i = 0; i < 7 - first_day; i++) {
+            for(i = 0; i < 42 - totalDays; i++) {
                 d = $("<div>").addClass(day_class+" outside").appendTo(days_row);
+
+                if (o.animationContent) {
+                    d.addClass("to-animate");
+                }
+
                 s = new Date(year, month, i + 1);
                 s.setHours(0,0,0,0);
                 d.data('day', s.getTime());
@@ -9413,12 +10018,131 @@ $.noConflict = function() {
                         }
                     }
 
-                    this._fireEvent("day-draw", {
+                    this._fireEvent("draw-day", {
                         date: s,
+                        day: s.getDate(),
+                        month: s.getMonth(),
+                        year: s.getFullYear(),
                         cell: d[0]
                     });
 
                 }
+
+                counter++;
+                if (counter % 7 === 0) {
+                    days_row = $("<div>").addClass("days-row").appendTo(days);
+                    if (o.showWeekNumber === true) {
+                        $("<div>").addClass("week-number").html((new Date(first.getFullYear(), first.getMonth(), first.getDate() + 1)).getWeek(o.weekStart)).appendTo(days_row);
+                    }
+                }
+
+            }
+
+            this._drawTime();
+            this._animateContent(".days .day");
+        },
+
+        _drawContentMonths: function(){
+            var element = this.element, o = this.options;
+            var content = element.find(".calendar-content");
+            var locale = this.locale['calendar']['months'];
+            var toolbar, months, month, yearToday = new Date().getFullYear(), monthToday = new Date().getMonth();
+
+            if (content.length === 0) {
+                content = $("<div>").addClass("calendar-content").addClass(o.clsCalendarContent).appendTo(element);
+            }
+
+            content.clear();
+
+            toolbar = $("<div>").addClass("calendar-toolbar").appendTo(content);
+
+            /**
+             * Calendar toolbar
+             */
+
+            $("<span>").addClass("prev-year").html(o.prevYearIcon).appendTo(toolbar);
+            $("<span>").addClass("curr-year").html(this.current.year).appendTo(toolbar);
+            $("<span>").addClass("next-year").html(o.nextYearIcon).appendTo(toolbar);
+
+            content.append( months = $("<div>").addClass("months") );
+
+            for(var i = 12; i < 24; i++) {
+                months.append(
+                    month = $("<div>")
+                        .attr("data-month", i - 12)
+                        .addClass("month")
+                        .addClass(i - 12 === monthToday && this.current.year === yearToday ? "today" : "")
+                        .html(locale[i])
+                );
+
+                if (o.animationContent) {
+                    month.addClass("to-animate");
+                }
+
+                this._fireEvent("draw-month", {
+                    month: i - 12,
+                    year: this.current.year,
+                    cell: month[0]
+                });
+            }
+
+            this._animateContent(".months .month");
+        },
+
+        _drawContentYears: function(){
+            var element = this.element, o = this.options;
+            var content = element.find(".calendar-content");
+            var toolbar, years, year;
+
+            if (content.length === 0) {
+                content = $("<div>").addClass("calendar-content").addClass(o.clsCalendarContent).appendTo(element);
+            }
+
+            content.clear();
+
+            toolbar = $("<div>").addClass("calendar-toolbar").appendTo(content);
+
+            /**
+             * Calendar toolbar
+             */
+
+            $("<span>").addClass("prev-year-group").html(o.prevYearIcon).appendTo(toolbar);
+            $("<span>").addClass("curr-year").html(this.yearGroupStart + " - " + (this.yearGroupStart + this.yearDistance)).appendTo(toolbar);
+            $("<span>").addClass("next-year-group").html(o.nextYearIcon).appendTo(toolbar);
+
+            content.append( years = $("<div>").addClass("years") );
+
+            for(var i = this.yearGroupStart; i <= this.yearGroupStart + this.yearDistance; i++) {
+                years.append(
+                    year = $("<div>")
+                        .attr("data-year", i)
+                        .addClass("year")
+                        .addClass(i === this.current.year ? "today" : "")
+                        .html(i)
+                );
+
+                if (o.animationContent) {
+                    year.addClass("to-animate");
+                }
+
+                if (i < o.minYear || i > o.maxYear) {
+                    year.addClass("disabled");
+                }
+
+                this._fireEvent("draw-year", {
+                    year: i,
+                    cell: year[0]
+                });
+            }
+
+            this._animateContent(".years .year");
+        },
+
+        _drawContent: function(){
+            switch (this.content) {
+                case "years": this._drawContentYears(); break;
+                case "months": this._drawContentMonths(); break;
+                default: this._drawContentDays();
             }
         },
 
@@ -9429,9 +10153,41 @@ $.noConflict = function() {
                 that._drawHeader();
                 that._drawContent();
                 that._drawFooter();
-                that._drawMonths();
-                that._drawYears();
             }, 0);
+        },
+
+        _animateContent: function(target, cls){
+            var element = this.element, o = this.options;
+            var content = element.find(".calendar-content");
+
+            cls = cls || "to-animate";
+
+            content.find(target).each(function(k){
+                var day = $(this);
+                setTimeout(function(){
+                    day.removeClass(cls);
+                }, o.animationSpeed * k);
+            });
+        },
+
+        getTime: function(asString){
+            var h, m;
+
+            asString = asString || false;
+
+            h = (""+this.time[0]).length < 2 ? "0"+this.time[0] : this.time[0];
+            m = (""+this.time[1]).length < 2 ? "0"+this.time[1] : this.time[1];
+
+            return asString ? h +":"+ m : this.time;
+        },
+
+        setTime: function(time){
+            if (Array.isArray(time)) {
+                this.time = time;
+            } else {
+                this.time = time.split(":");
+            }
+            this._drawCalendar();
         },
 
         getPreset: function(){
@@ -9467,6 +10223,9 @@ $.noConflict = function() {
                 month: this.today.getMonth(),
                 day: this.today.getDate()
             };
+            this.time = [new Date().getHours(), new Date().getMinutes()];
+            this.yearGroupStart = new Date().getFullYear();
+            this.content = "days";
             this._drawHeader();
             this._drawContent();
         },
@@ -9625,6 +10384,18 @@ $.noConflict = function() {
     'use strict';
     var Utils = Metro.utils;
     var CalendarPickerDefaultConfig = {
+        showTime: false,
+        initialTime: null,
+        initialHours: null,
+        initialMinutes: null,
+        clsCalendarTime: "",
+        clsTime: "",
+        clsTimeHours: "",
+        clsTimeMinutes: "",
+        clsTimeButton: "",
+        clsTimeButtonPlus: "",
+        clsTimeButtonMinus: "",
+
         label: "",
         value:'',
         calendarpickerDeferred: 0,
@@ -9685,6 +10456,7 @@ $.noConflict = function() {
         onCalendarShow: Metro.noop,
         onCalendarHide: Metro.noop,
         onChange: Metro.noop,
+        onPickerChange: Metro.noop,
         onMonthChange: Metro.noop,
         onYearChange: Metro.noop
     };
@@ -9704,7 +10476,8 @@ $.noConflict = function() {
                 value_date: null,
                 calendar: null,
                 overlay: null,
-                id: Utils.elementId("calendar-picker")
+                id: Utils.elementId("calendar-picker"),
+                time: [new Date().getHours(), new Date().getMinutes()]
             });
 
             return this;
@@ -9725,31 +10498,86 @@ $.noConflict = function() {
             var container = $("<div>").addClass("input " + element[0].className + " calendar-picker");
             var buttons = $("<div>").addClass("button-group");
             var calendarButton, clearButton, cal = $("<div>").addClass("drop-shadow");
-            var curr;
+            var curr, _curr, initTime, initHours, initMinutes, elementValue, h, m;
             var body = $("body");
 
             element.attr("type", "text");
             element.attr("autocomplete", "off");
             element.attr("readonly", true);
 
+            if (Utils.isValue(o.initialTime)) {
+                this.time = o.initialTime.trim().split(":");
+            }
+
+            if (Utils.isValue(o.initialHours)) {
+                this.time[0] = parseInt(o.initialHours);
+            }
+
+            if (Utils.isValue(o.initialHours)) {
+                this.time[1] = parseInt(o.initialMinutes);
+            }
+
             curr = (""+o.value).trim() !== '' ? o.value : element.val().trim();
 
             if (!Utils.isValue(curr)) {
-                if (o.useNow) this.value = new Date();
+                if (o.useNow) {
+                    this.value = new Date();
+                    this.time = [this.value.getHours(), this.value.getMinutes()];
+                }
             } else {
-                this.value = !Utils.isValue(o.inputFormat) ? new Date(curr) : curr.toDate(o.inputFormat, o.locale);
+                _curr = curr.split(" ");
+                this.value = !Utils.isValue(o.inputFormat) ? new Date(_curr[0]) : _curr[0].toDate(o.inputFormat, o.locale);
+                if (_curr[1]) {
+                    this.time = _curr[1].trim().split(":");
+                }
             }
 
             if (Utils.isValue(this.value)) this.value.setHours(0,0,0,0);
 
-            element.val(!Utils.isValue(curr) && o.nullValue === true ? "" : that.value.format(o.format, o.locale));
+            elementValue = !Utils.isValue(curr) && o.nullValue === true ? "" : that.value.format(o.format, o.locale);
+
+            if (o.showTime && this.time && elementValue) {
+                h = Utils.lpad(this.time[0], "0", 2);
+                m = Utils.lpad(this.time[1], "0", 2);
+                elementValue += " " + h + ":" + m;
+            }
+
+            element.val(elementValue);
 
             container.insertBefore(element);
             element.appendTo(container);
             buttons.appendTo(container);
             cal.appendTo(o.dialogMode ? body : container);
 
+            if (this.time && this.time.length) {
+                initHours = this.time[0];
+                if (typeof this.time[1] !== "undefined")
+                    initMinutes = this.time[1];
+            }
+
+            initTime = o.initialTime;
+
+            if (o.initialHours) {
+                initHours = o.initialHours;
+            }
+
+            if (o.initialHours) {
+                initMinutes = o.initialMinutes;
+            }
+
             Metro.makePlugin(cal, "calendar", {
+                showTime: o.showTime,
+                initialTime: initTime,
+                initialHours: initHours,
+                initialMinutes: initMinutes,
+                clsCalendarTime: o.clsCalendarTime,
+                clsTime: o.clsTime,
+                clsTimeHours: o.clsTimeHours,
+                clsTimeMinutes: o.clsTimeMinutes,
+                clsTimeButton: o.clsTimeButton,
+                clsTimeButtonPlus: o.clsTimeButtonPlus,
+                clsTimeButtonMinus: o.clsTimeButtonMinus,
+
                 wide: o.calendarWide,
                 widePoint: o.calendarWidePoint,
 
@@ -9784,26 +10612,73 @@ $.noConflict = function() {
                 showHeader: o.showHeader,
                 showFooter: false,
                 showWeekNumber: o.showWeekNumber,
-                onDayClick: function(sel, day, el){
+                onDayClick: function(sel, day, time, el){
                     var date = new Date(sel[0]);
+                    var elementValue, h, m;
+
                     date.setHours(0,0,0,0);
 
                     that._removeOverlay();
 
                     that.value = date;
-                    element.val(date.format(o.format, o.locale));
+                    that.time = time;
+
+                    elementValue = date.format(o.format, o.locale);
+
+                    if (o.showTime) {
+                        h = Utils.lpad(time[0], "0", 2);
+                        m = Utils.lpad(time[1], "0", 2);
+                        elementValue += " " + h + ":" + m;
+                    }
+
+                    element.val(elementValue);
                     element.trigger("change");
                     cal.removeClass("open open-up");
                     cal.hide();
 
                     that._fireEvent("change", {
-                        val: that.value
+                        val: that.value,
+                        time: that.time
                     });
 
                     that._fireEvent("day-click", {
                         sel: sel,
                         day: day,
+                        time: time,
                         el: el
+                    });
+
+                    that._fireEvent("picker-change", {
+                        val: that.value,
+                        time: that.time
+                    });
+                },
+                onTimeChange: function(time){
+                    var elementValue, h, m;
+
+                    that.time = time;
+
+                    if (!that.value) {
+                        that.value = new Date();
+                    }
+                    elementValue = that.value.format(o.format, o.locale);
+
+                    if (o.showTime) {
+                        h = Utils.lpad(time[0], "0", 2);
+                        m = Utils.lpad(time[1], "0", 2);
+                        elementValue += " " + h + ":" + m;
+                    }
+
+                    element.val(elementValue);
+
+                    that._fireEvent("change", {
+                        val: that.value,
+                        time: that.time
+                    });
+
+                    that._fireEvent("picker-change", {
+                        val: that.value,
+                        time: that.time
                     });
                 },
                 onMonthChange: o.onMonthChange,
@@ -9986,18 +10861,38 @@ $.noConflict = function() {
 
         val: function(v){
             var element = this.element, o = this.options;
+            var elementValue, h, m;
 
-            if (Utils.isNull(v)) {
-                return this.value;
+            if (Utils.isNull(v) || arguments.length === 0)  {
+                return {
+                    date: this.value,
+                    time: this.time
+                };
             }
 
-            if (Utils.isDate(v, o.inputFormat) === true) {
-                Metro.getPlugin(this.calendar[0],"calendar").clearSelected();
-                this.value = typeof v === 'string' ? o.inputFormat ? v.toDate(o.inputFormat, o.locale) : new Date(v) : v;
-                if (Utils.isValue(this.value)) this.value.setHours(0,0,0,0);
-                element.val(this.value.format(o.format, o.locale));
-                element.trigger("change");
+            if (!Utils.isDate(v, o.format) && !Utils.isDateObject(v)) {
+                throw new Error(v + " is a not valid date value");
             }
+
+            var _curr = v.split(" ");
+            this.value = Utils.isValue(o.inputFormat) === false ? new Date(_curr[0]) : _curr[0].toDate(o.inputFormat, o.locale);
+            if (_curr[1]) {
+                this.time = _curr[1].trim().split(":");
+            }
+
+            this.value.setHours(0,0,0,0);
+            this.calendar.data('calendar').setTime(this.time);
+
+            elementValue = this.value.format(o.format);
+
+            if (o.showTime && this.time && elementValue) {
+                h = Utils.lpad(this.time[0], "0", 2);
+                m = Utils.lpad(this.time[1], "0", 2);
+                elementValue += " " + h + ":" + m;
+            }
+
+            element.val(elementValue);
+            element.trigger("change");
         },
 
         disable: function(){
@@ -10045,47 +10940,30 @@ $.noConflict = function() {
             }
         },
 
-        changeAttribute: function(attributeName){
-            var that = this, element = this.element;
+        getTime: function(asString){
+            var h, m;
+
+            asString = asString || false;
+
+            h = Utils.lpad(this.time[0], "0", 2);
+            m = Utils.lpad(this.time[1], "0", 2);
+
+            return asString ? h +":"+ m : this.time;
+        },
+
+        changeAttribute: function(attributeName, newValue){
+            var that = this;
             var cal = Metro.getPlugin(this.calendar[0], "calendar");
 
-            var changeAttrLocale = function(){
-                that.i18n(element.attr("data-locale"));
-            };
-
-            var changeAttrSpecial = function(){
-                cal.setSpecial(element.attr("data-special"));
-            };
-
-            var changeAttrExclude = function(){
-                cal.setExclude(element.attr("data-exclude"));
-            };
-
-            var changeAttrMinDate = function(){
-                cal.setMinDate(element.attr("data-min-date"));
-            };
-
-            var changeAttrMaxDate = function(){
-                cal.setMaxDate(element.attr("data-max-date"));
-            };
-
-            var changeAttrValue = function(){
-                that.val(element.attr("value"));
-            };
-
-            var changeDataValue = function(){
-                that.val(element.attr("data-value"))
-            };
-
             switch (attributeName) {
-                case "value": changeAttrValue(); break;
+                case "value": that.val(newValue); break;
                 case 'disabled': this.toggleState(); break;
-                case 'data-locale': changeAttrLocale(); break;
-                case 'data-special': changeAttrSpecial(); break;
-                case 'data-exclude': changeAttrExclude(); break;
-                case 'data-min-date': changeAttrMinDate(); break;
-                case 'data-max-date': changeAttrMaxDate(); break;
-                case 'data-value': changeDataValue(); break;
+                case 'data-locale': that.i18n(newValue); break;
+                case 'data-special': cal.setSpecial(newValue); break;
+                case 'data-exclude': cal.setExclude(newValue); break;
+                case 'data-min-date': cal.setMinDate(newValue); break;
+                case 'data-max-date': cal.setMaxDate(newValue); break;
+                case 'data-value': that.val(newValue); break;
             }
         },
 
@@ -10767,6 +11645,7 @@ $.noConflict = function() {
                 return ;
             }
             o.opacity = opacity;
+
             element.css({
                 backgroundColor: Metro.colors.toRGBA(Utils.getStyleOne(element, "background-color"), opacity)
             });
@@ -11560,6 +12439,1032 @@ $.noConflict = function() {
 
 (function(Metro, $) {
     'use strict';
+
+    var Utils = Metro.utils;
+    var ColorPickerDefaultConfig = {
+        duration: 100,
+        prepend: "",
+        append: "",
+        clearButton: false,
+        clearButtonIcon: "<span class='default-icon-cross'></span>",
+        pickerButtonIcon: "<span class='default-icon-equalizer'></span>",
+        defaultValue: "rgba(0, 0, 0, 0)",
+        copyInlineStyles: false,
+        clsPickerButton: "",
+        clsClearButton: "",
+        onColorSelected: Metro.noop,
+        onColorPickerCreate: Metro.noop
+    };
+
+    Metro.colorPickerSetup = function (options) {
+        ColorPickerDefaultConfig = $.extend({}, ColorPickerDefaultConfig, options);
+    };
+
+    if (typeof window["metroColorPickerSetup"] !== undefined) {
+        Metro.colorPickerSetup(window["metroColorPickerSetup"]);
+    }
+
+    Metro.Component('color-picker', {
+        init: function( options, elem ) {
+            this._super(elem, options, $.extend({}, Metro.defaults.ColorSelectorDefaultConfig, {
+                showUserColors: false,
+                showValues: ""
+            }, ColorPickerDefaultConfig), {
+                value: null,
+                picker: null,
+                colorSelector: null,
+                colorSelectorBox: null,
+                colorExample: null,
+                inputInterval: null,
+                isOpen: false
+            });
+            return this;
+        },
+
+        _create: function(){
+            var element = this.element, o = this.options;
+            var current = element.val();
+
+            if (!Metro.pluginExists("color-selector")) {
+                throw new Error("Color selector component required!");
+            }
+
+            this.value = Metro.colors.isColor(current) ? current : Metro.colors.isColor(o.defaultValue) ? o.defaultValue : "rgba(0,0,0,0)";
+
+            this._createStructure();
+            this._createEvents();
+
+            this._fireEvent('color-picker-create');
+        },
+
+        _createStructure: function(){
+            var that = this, element = this.element, o = this.options;
+            var picker = element.wrap( $("<div>").addClass("color-picker").addClass(element[0].className) );
+            var buttons, colorExample, colorSelector, colorSelectorBox;
+
+            colorExample = $("<div>").addClass("color-example-box").insertBefore(element);
+
+            buttons = $("<div>").addClass("buttons").appendTo(picker);
+
+            buttons.append(
+                $("<button>")
+                    .addClass("button color-picker-button")
+                    .addClass(o.clsPickerButton)
+                    .attr("tabindex", -1)
+                    .attr("type", "button")
+                    .html(o.pickerButtonIcon)
+            );
+
+            if (o.clearButton === true && !element[0].readOnly) {
+                buttons.append(
+                    $("<button>")
+                        .addClass("button input-clear-button")
+                        .addClass(o.clsClearButton)
+                        .attr("tabindex", -1)
+                        .attr("type", "button")
+                        .html(o.clearButtonIcon)
+                );
+            }
+
+            if (Utils.isValue(o.prepend)) {
+                picker.prepend($("<div>").addClass("prepend").addClass(o.clsPrepend).html(o.prepend));
+            }
+
+            if (Utils.isValue(o.append)) {
+                picker.append($("<div>").html(o.append).addClass("append").addClass(o.clsAppend));
+            }
+
+            colorSelectorBox = $("<div>").addClass("color-selector-box").appendTo(picker);
+            colorSelector = $("<div>").appendTo(colorSelectorBox);
+
+            this.picker = picker;
+            this.colorExample = colorExample;
+            this.colorSelector = colorSelector;
+            this.colorSelectorBox = colorSelectorBox;
+
+            Metro.makePlugin(colorSelector, 'color-selector', {
+                defaultSwatches: o.defaultSwatches,
+                userColors: o.userColors,
+                returnValueType: o.returnValueType,
+                returnAsString: o.returnAsString,
+                showValues: o.showValues,
+                showAsString: o.showAsString,
+                showUserColors: o.showUserColors,
+                target: o.target,
+                controller: element,
+                locale: o.locale,
+                addUserColorTitle: o.addUserColorTitle,
+                userColorsTitle: o.userColorsTitle,
+                hslMode: o.hslMode,
+                showAlphaChannel: o.showAlphaChannel,
+                inputThreshold: o.inputThreshold,
+                initColor: this.value,
+                readonlyInput: o.readonlyInput,
+                clsSelector: o.clsSelector,
+                clsSwatches: o.clsSwatches,
+                clsSwatch: o.clsSwatch,
+                clsValue: o.clsValue,
+                clsLabel: o.clsLabel,
+                clsInput: o.clsInput,
+                clsUserColorButton: o.clsUserColorButton,
+                clsUserColors: o.clsUserColors,
+                clsUserColorsTitle: o.clsUserColorsTitle,
+                clsUserColor: o.clsUserColor,
+                onColor: o.onColor,
+                onColorSelectorCreate: o.onColorSelectorCreate
+            });
+
+            Metro.makePlugin(colorSelectorBox, 'dropdown', {
+                dropFilter: ".color-picker",
+                duration: o.duration,
+                toggleElement: [picker],
+                checkDropUp: true,
+                onDrop: function(){
+                    Metro.getPlugin(colorSelector, 'color-selector').val(that.value);
+                }
+            });
+
+            element[0].className = '';
+
+            if (o.copyInlineStyles === true) {
+                $.each(Utils.getInlineStyles(element), function(key, value){
+                    picker.css(key, value);
+                });
+            }
+
+            this._setColor();
+        },
+
+        _clearInputInterval: function(){
+            clearInterval(this.inputInterval);
+            this.inputInterval = false;
+        },
+
+        _setColor: function(){
+            var colorExample = this.colorExample;
+            var color = this.value;
+
+            if (this.value.indexOf("cmyk") !== -1 || this.value.indexOf("hsv") !== -1) {
+                color = Metro.colors.toHEX(this.value);
+            }
+
+            colorExample.css({
+                backgroundColor: color
+            });
+        },
+
+        _createEvents: function(){
+            var that = this, element = this.element, o = this.options;
+            var picker = this.picker,
+                colorSelector = this.colorSelector,
+                colorSelectorBox = this.colorSelector;
+
+            picker.on(Metro.events.click, ".input-clear-button", function(e){
+                e.preventDefault();
+                e.stopPropagation();
+                element.val(o.defaultValue).trigger("change");
+                Metro.getPlugin(colorSelector, 'color-selector').val(o.defaultValue);
+            });
+
+            element.on(Metro.events.inputchange, function(){
+                that.value = this.value;
+                that._setColor();
+            });
+
+            colorSelectorBox.on(Metro.events.click, function(e){
+                e.stopPropagation();
+            })
+        },
+
+        val: function(v){
+            if (arguments.length === 0 || !Utils.isValue(v)) {
+                return this.value;
+            }
+
+            if (!Metro.colors.isColor(v)) {
+                return ;
+            }
+
+            this.value = v;
+            this.element.val(v).trigger("change");
+            this._setColor();
+        },
+
+        // changeAttribute: function(attr, newValue){
+        // },
+
+        destroy: function(){
+            this.element.remove();
+        }
+    });
+
+    $(document).on(Metro.events.click, function(){
+        $(".color-picker").removeClass("open");
+    });
+
+}(Metro, m4q));
+
+
+(function(Metro, $) {
+    'use strict';
+
+    var supportedColorTypes = "hex, rgb, rgba, hsl, hsla, hsv, cmyk";
+    var Utils = Metro.utils;
+    var ColorSelectorDefaultConfig = {
+        defaultSwatches: "#FFFFFF,#000000,#FFFB0D,#0532FF,#FF9300,#00F91A,#FF2700,#686868,#EE5464,#D27AEE,#5BA8C4,#E64AA9,#1ba1e2,#6a00ff,#bebebe,#f8f8f8",
+        userColors: null,
+        returnValueType: "hex",
+        returnAsString: true,
+        showValues: supportedColorTypes,
+        showAsString: null,
+        showUserColors: true,
+        controller: null,
+        locale: "en-US",
+        addUserColorTitle: null,
+        userColorsTitle: null,
+        hslMode: "percent",
+        showAlphaChannel: true,
+        inputThreshold: 300,
+        initColor: null,
+        readonlyInput: false,
+        clsSelector: "",
+        clsSwatches: "",
+        clsSwatch: "",
+        clsValue: "",
+        clsLabel: "",
+        clsInput: "",
+        clsUserColorButton: "",
+        clsUserColors: "",
+        clsUserColorsTitle: "",
+        clsUserColor: "",
+        onSelectColor: Metro.noop,
+        onColorSelectorCreate: Metro.noop
+    };
+
+    Metro.colorSelectorSetup = function (options) {
+        ColorSelectorDefaultConfig = $.extend({}, ColorSelectorDefaultConfig, options);
+    };
+
+    if (typeof window["metroColorSelectorSetup"] !== undefined) {
+        Metro.colorSelectorSetup(window["metroColorSelectorSetup"]);
+    }
+
+    Metro.Component('color-selector', {
+        init: function( options, elem ) {
+            this._super(elem, options, ColorSelectorDefaultConfig, {
+                // define instance vars here
+                id: Utils.elementId("color-selector"),
+                defaultSwatches: [],
+                showValues: [],
+                userColors: [],
+                showAsString: [],
+                hue: 0,
+                saturation: 0,
+                lightness: 1,
+                alpha: 1,
+                hsl: null,
+                hsla: null,
+                hsv: null,
+                rgb: null,
+                rgba: null,
+                cmyk: null,
+                hex: null,
+                inputInterval: null,
+                locale: null
+            });
+            return this;
+        },
+
+        _create: function(){
+            var o = this.options;
+
+            if (Utils.isValue(o.defaultSwatches)) this.defaultSwatches = o.defaultSwatches.toArray(",").map(function (el){return el.toUpperCase();});
+            if (Utils.isValue(o.showValues)) this.showValues = o.showValues.toArray(",");
+            if (Utils.isValue(o.userColors)) this.userColors = o.userColors.toArray(",").map(function (el){return el.toUpperCase();});
+            if (Utils.isValue(o.showAsString)) this.showAsString = o.showAsString.toArray(",");
+
+            this.locale = Metro.locales[o.locale]['colorSelector'];
+
+            this._createStructure();
+            this._createEvents();
+
+            this._fireEvent('color-selector-create');
+        },
+
+        _createStructure: function(){
+            var that = this, element = this.element, o = this.options, locale = this.locale;
+            var colorBox, row, swatches, map, value, inputs, radios,
+                userColorsActions, hueCanvas, shadeCanvas, hueCursor, shadeCursor,
+                colorBlock, alphaCanvas, alphaCursor;
+
+            element.addClass("color-selector").addClass(o.clsSelector);
+
+            element.append( colorBox = $("<div>").addClass("color-box") );
+
+            colorBox.append( row = $("<div>").addClass("row") );
+
+            row.append( swatches = $("<div>").addClass("default-swatches").addClass(o.clsSwatches) );
+            $.each(this.defaultSwatches, function(){
+                swatches.append(
+                    $("<button>")
+                        .attr("data-color", this)
+                        .attr("type", "button")
+                        .addClass("swatch")
+                        .addClass(o.clsSwatch)
+                        .css("background-color", this)
+                );
+            });
+
+            colorBox.append( row = $("<div>").addClass("row") );
+
+            row.append( map = $("<div>").addClass("color-map") );
+            map.append( shadeCursor = $("<button>").attr("type", "button").addClass("cursor color-cursor") )
+            map.append( shadeCanvas = $("<canvas>").addClass("color-canvas") )
+
+            row.append( map = $("<div>").addClass("hue-map") );
+            map.append( hueCursor = $("<button>").attr("type", "button").addClass("cursor hue-cursor") )
+            map.append( hueCanvas = $("<canvas>").addClass("hue-canvas") )
+
+            row.append( map = $("<div>").addClass("alpha-map") );
+            map.append( alphaCursor = $("<button>").attr("type", "button").addClass("cursor alpha-cursor") )
+            map.append( alphaCanvas = $("<canvas>").addClass("alpha-canvas") )
+
+            colorBox.append( row = $("<div>").addClass("row color-values-block") );
+
+            row.append( value = $("<div>").addClass("color-value-hex") );
+            value.append( $("<input type='radio' name='returnType' value='hex' checked>").addClass("check-color-value-hex") );
+            value.append( colorBlock = $("<div>").addClass("color-block as-string color-hex") );
+            colorBlock.append( $("<input type='text' data-prepend='HEX:'>").addClass("input-small value-hex") );
+
+            row.append( value = $("<div>").addClass("color-value-rgb") );
+            value.append( $("<input type='radio' name='returnType' value='rgb'>").addClass("check-color-value-rgb") );
+            value.append( colorBlock = $("<div>").addClass("color-block color-rgb") );
+            colorBlock.append( $("<input type='text' data-prepend='R:'>").addClass("input-small value-r") );
+            colorBlock.append( $("<input type='text' data-prepend='G:'>").addClass("input-small value-g") );
+            colorBlock.append( $("<input type='text' data-prepend='B:'>").addClass("input-small value-b") );
+            value.append( colorBlock = $("<div>").addClass("color-block as-string color-rgb") );
+            colorBlock.append( $("<input type='text' data-prepend='RGB:'>").addClass("input-small value-rgb") );
+
+            if (this.showAsString.indexOf("rgb") > -1) {
+                value.find(".value-r,.value-g,.value-b").parent().hide();
+            } else {
+                value.find(".value-rgb").parent().hide();
+            }
+
+            row.append( value = $("<div>").addClass("color-value-rgba") );
+            value.append( $("<input type='radio' name='returnType' value='rgba'>").addClass("check-color-value-rgba") );
+            value.append( colorBlock = $("<div>").addClass("color-block color-rgba") );
+            colorBlock.append( $("<input type='text' data-prepend='R:'>").addClass("input-small value-r") );
+            colorBlock.append( $("<input type='text' data-prepend='G:'>").addClass("input-small value-g") );
+            colorBlock.append( $("<input type='text' data-prepend='B:'>").addClass("input-small value-b") );
+            colorBlock.append( $("<input type='text' data-prepend='A:'>").addClass("input-small value-a") );
+            value.append( colorBlock = $("<div>").addClass("color-block as-string color-rgba") );
+            colorBlock.append( $("<input type='text' data-prepend='RGBA:'>").addClass("input-small value-rgba") );
+
+            if (this.showAsString.indexOf("rgba") > -1) {
+                value.find(".value-r,.value-g,.value-b,.value-a").parent().hide();
+            } else {
+                value.find(".value-rgba").parent().hide();
+            }
+
+            row.append( value = $("<div>").addClass("color-value-hsl") );
+            value.append( $("<input type='radio' name='returnType' value='hsl'>").addClass("check-color-value-hsl") );
+            value.append( colorBlock = $("<div>").addClass("color-block color-hsl") );
+            colorBlock.append( $("<input type='text' data-prepend='H:'>").addClass("input-small value-h") );
+            colorBlock.append( $("<input type='text' data-prepend='S:'>").addClass("input-small value-s") );
+            colorBlock.append( $("<input type='text' data-prepend='L:'>").addClass("input-small value-l") );
+            value.append( colorBlock = $("<div>").addClass("color-block as-string color-hsl") );
+            colorBlock.append( $("<input type='text' data-prepend='HSL:'>").addClass("input-small value-hsl") );
+
+            if (this.showAsString.indexOf("hsl") > -1) {
+                value.find(".value-h,.value-s,.value-l").parent().hide();
+            } else {
+                value.find(".value-hsl").parent().hide();
+            }
+
+            row.append( value = $("<div>").addClass("color-value-hsla") );
+            value.append( $("<input type='radio' name='returnType' value='hsla'>").addClass("check-color-value-hsla") );
+            value.append( colorBlock = $("<div>").addClass("color-block color-hsla") );
+            colorBlock.append( $("<input type='text' data-prepend='H:'>").addClass("input-small value-h") );
+            colorBlock.append( $("<input type='text' data-prepend='S:'>").addClass("input-small value-s") );
+            colorBlock.append( $("<input type='text' data-prepend='L:'>").addClass("input-small value-l") );
+            colorBlock.append( $("<input type='text' data-prepend='A:'>").addClass("input-small value-a") );
+            value.append( colorBlock = $("<div>").addClass("color-block as-string color-hsla") );
+            colorBlock.append( $("<input type='text' data-prepend='HSLA:'>").addClass("input-small value-hsla") );
+
+            if (this.showAsString.indexOf("hsla") > -1) {
+                value.find(".value-h,.value-s,.value-l,.value-a").parent().hide();
+            } else {
+                value.find(".value-hsla").parent().hide();
+            }
+
+            row.append( value = $("<div>").addClass("color-value-hsv") );
+            value.append( $("<input type='radio' name='returnType' value='hsv'>").addClass("check-color-value-hsl") );
+            value.append( colorBlock = $("<div>").addClass("color-block color-hsv") );
+            colorBlock.append( $("<input type='text' data-prepend='H:'>").addClass("input-small value-h") );
+            colorBlock.append( $("<input type='text' data-prepend='S:'>").addClass("input-small value-s") );
+            colorBlock.append( $("<input type='text' data-prepend='V:'>").addClass("input-small value-v") );
+            value.append( colorBlock = $("<div>").addClass("color-block as-string color-hsv") );
+            colorBlock.append( $("<input type='text' data-prepend='HSV:'>").addClass("input-small value-hsv") );
+
+            if (this.showAsString.indexOf("hsv") > -1) {
+                value.find(".value-h,.value-s,.value-v").parent().hide();
+            } else {
+                value.find(".value-hsv").parent().hide();
+            }
+
+            row.append( value = $("<div>").addClass("color-value-cmyk") );
+            value.append( $("<input type='radio' name='returnType' value='cmyk'>").addClass("check-color-value-cmyk") );
+            value.append( colorBlock = $("<div>").addClass("color-block color-cmyk") );
+            colorBlock.append( $("<input type='text' data-prepend='C:'>").addClass("input-small value-c") );
+            colorBlock.append( $("<input type='text' data-prepend='M:'>").addClass("input-small value-m") );
+            colorBlock.append( $("<input type='text' data-prepend='Y:'>").addClass("input-small value-y") );
+            colorBlock.append( $("<input type='text' data-prepend='K:'>").addClass("input-small value-k") );
+            value.append( colorBlock = $("<div>").addClass("color-block as-string color-cmyk") );
+            colorBlock.append( $("<input type='text' data-prepend='CMYK:'>").addClass("input-small value-cmyk") );
+
+            if (this.showAsString.indexOf("cmyk") > -1) {
+                value.find(".value-s,.value-m,.value-y,.value-k").parent().hide();
+            } else {
+                value.find(".value-cmyk").parent().hide();
+            }
+
+            colorBox.append( row = $("<div>").addClass("row user-colors-container") );
+            row.append( $("<div>").addClass("user-colors-title").addClass(o.clsUserColorsTitle).html(o.userColorsTitle || locale['userColorsTitle']) );
+            row.append( $("<div>").addClass("user-colors").addClass(o.clsUserColors) );
+            row.append( userColorsActions = $("<div>").addClass("user-colors-actions") );
+            userColorsActions.append(
+                $("<button>")
+                    .addClass("button add-button")
+                    .addClass(o.clsUserColorButton)
+                    .html("<span class='user-swatch'></span><span>"+(o.addUserColorTitle || locale['addUserColorButton'])+"</span>")
+            );
+
+            inputs = colorBox.find("input[type=text]");
+            Metro.makePlugin(inputs, 'input', {
+                clearButton: false,
+                clsPrepend: o.clsLabel,
+                clsComponent: o.clsInput
+            });
+            inputs.addClass(o.clsValue);
+
+            if (o.readonlyInput) {
+                inputs.attr("readonly", true);
+            }
+
+            radios = colorBox.find("input[type=radio]").each(function(){
+                $(this).attr("name", that.id + "-returnType");
+            });
+            radios.each(function(){
+                if ($(this).val() === o.returnValueType) {
+                    this.checked = true;
+                }
+            });
+            Metro.makePlugin(radios, 'radio', {
+                style: 2
+            });
+
+            $.each(supportedColorTypes.toArray(","), function(){
+                if (that.showValues.indexOf(this) === -1) element.find(".color-value-"+this).hide();
+            });
+
+            if (!o.showUserColors) {
+                element.find(".user-colors-container").hide();
+            }
+
+            if (!o.showAlphaChannel) {
+                element.addClass("no-alpha-channel");
+                $.each(["rgba", "hsla"], function(){
+                    element.find(".color-value-"+this).hide();
+                });
+            }
+
+            this._fillUserColors();
+
+            this.hueCanvas = hueCanvas;
+            this.hueCursor = hueCursor;
+            this.shadeCanvas = shadeCanvas;
+            this.shadeCursor = shadeCursor;
+            this.alphaCanvas = alphaCanvas;
+            this.alphaCursor = alphaCursor;
+
+            this._createShadeCanvas();
+            this._createHueCanvas();
+            this._createAlphaCanvas();
+            this._setColorValues();
+            this._updateCursorsColor();
+
+            if (o.initColor && Metro.colors.isColor(o.initColor)) {
+                this._colorToPos(typeof o.initColor === "string" ? Metro.colors.parse(o.initColor) : o.initColor);
+            }
+        },
+
+        _createShadeCanvas: function(color){
+            var canvas = this.shadeCanvas[0];
+            var ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if(!color) color = '#f00';
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            var whiteGradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+            whiteGradient.addColorStop(0, "#fff");
+            whiteGradient.addColorStop(1, "transparent");
+            ctx.fillStyle = whiteGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            var blackGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            blackGradient.addColorStop(0, "transparent");
+            blackGradient.addColorStop(1, "#000");
+            ctx.fillStyle = blackGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        },
+
+        _createHueCanvas: function(){
+            var canvas = this.hueCanvas[0];
+            var ctx = canvas.getContext('2d');
+            var hueGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+
+            hueGradient.addColorStop(0.00, "hsl(0,100%,50%)");
+            hueGradient.addColorStop(0.17, "hsl(298.8, 100%, 50%)");
+            hueGradient.addColorStop(0.33, "hsl(241.2, 100%, 50%)");
+            hueGradient.addColorStop(0.50, "hsl(180, 100%, 50%)");
+            hueGradient.addColorStop(0.67, "hsl(118.8, 100%, 50%)");
+            hueGradient.addColorStop(0.83, "hsl(61.2,100%,50%)");
+            hueGradient.addColorStop(1.00, "hsl(360,100%,50%)");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = hueGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        },
+
+        _createAlphaCanvas: function(){
+            var canvas = this.alphaCanvas[0];
+            var ctx = canvas.getContext('2d');
+            var alphaGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            var startColor = new Metro.colorPrimitive.HSLA(this.hue, 1, .5, 1).toString(), endColor = "rgba(0,0,0,0)";
+
+            alphaGradient.addColorStop(0.00, startColor);
+            alphaGradient.addColorStop(1.00, endColor);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = alphaGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        },
+
+        _updateHueCursor: function(y){
+            this.hueCursor.css({
+                "top": y
+            });
+        },
+
+        _updateAlphaCursor: function(y){
+            this.alphaCursor.css({
+                "top": y
+            });
+        },
+
+        _getHueColor: function(pageY){
+            var canvas = this.hueCanvas;
+            var offset = canvas.offset();
+            var height = canvas.height();
+            var y, percent, color, hue;
+
+            y = pageY - offset.top;
+
+            if ( y > height ) y = height;
+            if ( y < 0 ) y = 0;
+
+            percent = y / height;
+            hue = 360 - (360 * percent);
+            if (hue === 360) hue = 0;
+            color = "hsl("+ hue +", 100%, 50%)";
+            this.hue = hue;
+
+            this._createShadeCanvas(color);
+            this._createAlphaCanvas();
+            this._updateHueCursor(y);
+            this._updateCursorsColor();
+            this._setColorValues();
+        },
+
+        _getAlphaValue: function(pageY){
+            var canvas = this.alphaCanvas;
+            var offset = canvas.offset();
+            var height = canvas.height();
+            var y, percent;
+
+            y = pageY - offset.top;
+
+            if ( y > height ) y = height;
+            if ( y < 0 ) y = 0;
+
+            percent = 1 - y / height;
+            this.alpha = percent.toFixed(2);
+
+            this._updateAlphaCursor(y);
+            this._updateCursorsColor();
+            this._setColorValues();
+        },
+
+        _getShadeColor: function(pageX, pageY){
+            var canvas = this.shadeCanvas;
+            var offset = canvas.offset();
+            var width = canvas.width();
+            var height = canvas.height();
+            var x = pageX - offset.left;
+            var y = pageY - offset.top;
+
+            if(x > width) x = width;
+            if(x < 0) x = 0;
+            if(y > height) y = height;
+            if(y < 0) y = .1;
+
+            var xRatio = x / width * 100;
+            var yRatio = y / height * 100;
+            var hsvValue = 1 - (yRatio / 100);
+            var hsvSaturation = xRatio / 100;
+            var lightness = (hsvValue / 2) * (2 - hsvSaturation);
+            var saturation = (hsvValue * hsvSaturation) / (1 - Math.abs(2 * lightness - 1));
+
+            if (isNaN(lightness)) {
+                lightness = 0;
+            }
+
+            if (isNaN(saturation)) {
+                saturation = 0;
+            }
+
+            this.lightness = lightness;
+            this.saturation = saturation;
+
+            this._updateShadeCursor(x, y);
+            this._updateCursorsColor();
+            this._setColorValues();
+        },
+
+        _updateCursorsColor: function(){
+            this.shadeCursor.css({backgroundColor: Metro.colors.toHEX(new Metro.colorPrimitive.HSL(this.hue, this.saturation, this.lightness))});
+            this.hueCursor.css({backgroundColor: Metro.colors.toHEX(new Metro.colorPrimitive.HSL(this.hue, 1, .5))});
+            this.alphaCursor.css({backgroundColor: Metro.colors.toRGBA(new Metro.colorPrimitive.HSL(this.hue, 1, .5), this.alpha).toString()});
+        },
+
+        _updateShadeCursor: function(x, y){
+            this.shadeCursor.css({
+                top: y,
+                left: x
+            })
+        },
+
+        _colorToPos: function (color){
+            var shadeCanvasRect = this.shadeCanvas[0].getBoundingClientRect();
+            var hueCanvasRect = this.hueCanvas[0].getBoundingClientRect();
+            var alphaCanvasRect = this.alphaCanvas[0].getBoundingClientRect();
+            var hsl = Metro.colors.toHSL(color);
+            var hsla = Metro.colors.toHSLA(color, color.a);
+            var hsv = Metro.colors.toHSV(color);
+            var x = shadeCanvasRect.width * hsv.s;
+            var y = shadeCanvasRect.height * (1 - hsv.v);
+            var hueY = hueCanvasRect.height - ((hsl.h / 360) * hueCanvasRect.height);
+            var alphaY = (1 - hsla.a) * alphaCanvasRect.height;
+
+            this.hue = hsl.h;
+            this.saturation = hsl.s;
+            this.lightness = hsl.l;
+            this.alpha = hsla.a;
+
+            this._updateHueCursor(hueY);
+            this._updateShadeCursor(x, y);
+            this._updateAlphaCursor(alphaY);
+            this._updateCursorsColor();
+            this._createShadeCanvas("hsl("+ this.hue +", 100%, 50%)");
+            this._createAlphaCanvas();
+            this._setColorValues();
+        },
+
+        _setColorValues: function(){
+            var element = this.element, o = this.options;
+            var hsl = Metro.colors.toHSL(new Metro.colorPrimitive.HSL(this.hue, this.saturation, this.lightness));
+            var hsla = Metro.colors.toHSLA(new Metro.colorPrimitive.HSLA(this.hue, this.saturation, this.lightness, this.alpha));
+            var rgb = Metro.colors.toRGB(hsl);
+            var rgba = Metro.colors.toRGBA(rgb, this.alpha);
+            var hsv = Metro.colors.toHSV(hsl);
+            var cmyk = Metro.colors.toCMYK(hsl);
+            var hex = Metro.colors.toHEX(hsl);
+            var controller = $(o.controller);
+            var percent = o.hslMode === "percent";
+
+            this.hsl = hsl;
+            this.hsla = hsla;
+            this.hsv = hsv;
+            this.rgb = rgb;
+            this.rgba = rgba;
+            this.hex = hex;
+            this.cmyk = cmyk;
+
+            element.find(".color-value-hex .value-hex input").val(hex);
+
+            element.find(".color-value-rgb .value-r input").val(rgb.r);
+            element.find(".color-value-rgb .value-g input").val(rgb.g);
+            element.find(".color-value-rgb .value-b input").val(rgb.b);
+            element.find(".color-value-rgb .value-rgb input").val(rgb.toString());
+
+            element.find(".color-value-rgba .value-r input").val(rgba.r);
+            element.find(".color-value-rgba .value-g input").val(rgba.g);
+            element.find(".color-value-rgba .value-b input").val(rgba.b);
+            element.find(".color-value-rgba .value-a input").val(rgba.a);
+            element.find(".color-value-rgba .value-rgba input").val(rgba.toString());
+
+            element.find(".color-value-hsl .value-h input").val(hsl.h.toFixed(0));
+            element.find(".color-value-hsl .value-s input").val(percent ? Math.round(hsl.s*100)+"%" : hsl.s.toFixed(4));
+            element.find(".color-value-hsl .value-l input").val(percent ? Math.round(hsl.l*100)+"%" : hsl.l.toFixed(4));
+            element.find(".color-value-hsl .value-hsl input").val(hsl.toString());
+
+            element.find(".color-value-hsla .value-h input").val(hsla.h.toFixed(0));
+            element.find(".color-value-hsla .value-s input").val(percent ? Math.round(hsla.s*100)+"%" : hsl.s.toFixed(4));
+            element.find(".color-value-hsla .value-l input").val(percent ? Math.round(hsla.l*100)+"%" : hsl.l.toFixed(4));
+            element.find(".color-value-hsla .value-a input").val(hsla.a);
+            element.find(".color-value-hsla .value-hsla input").val(hsla.toString());
+
+            element.find(".color-value-hsv .value-h input").val(hsv.h.toFixed(0));
+            element.find(".color-value-hsv .value-s input").val(percent ? Math.round(hsv.s*100)+"%" : hsv.s.toFixed(4));
+            element.find(".color-value-hsv .value-v input").val(percent ? Math.round(hsv.v*100)+"%" : hsv.v.toFixed(4));
+            element.find(".color-value-hsv .value-hsv input").val(hsv.toString());
+
+            element.find(".color-value-cmyk .value-c input").val(cmyk.c.toFixed(0));
+            element.find(".color-value-cmyk .value-m input").val(cmyk.m.toFixed(0));
+            element.find(".color-value-cmyk .value-y input").val(cmyk.y.toFixed(0));
+            element.find(".color-value-cmyk .value-k input").val(cmyk.k.toFixed(0));
+            element.find(".color-value-cmyk .value-cmyk input").val(cmyk.toString());
+
+            element.find(".user-colors-actions .user-swatch").css({
+                backgroundColor: hex
+            });
+
+            if (controller && controller.length) {
+                controller.val(this.val()).trigger("change");
+            }
+
+            this._fireEvent("select-color", {
+                color: this.val(),
+                primitive: {
+                    hsl: this.hsl,
+                    hsla: this.hsla,
+                    rgb: this.rgb,
+                    rgba: this.rgba,
+                    hsv: this.hsv,
+                    cmyk: this.cmyk,
+                    hex: this.hex
+                }
+            });
+        },
+
+        _clearInputInterval: function(){
+            clearInterval(this.inputInterval);
+            this.inputInterval = false;
+        },
+
+        _createEvents: function(){
+            var that = this, element = this.element, o = this.options;
+            var hueMap = element.find(".hue-map");
+            var alphaMap = element.find(".alpha-map");
+            var shadeMap = element.find(".color-map");
+            var controller = $(o.controller);
+            var colorValues = element.find(".color-values-block input[type=text]");
+
+            colorValues.on(Metro.events.inputchange, function(){
+                var input = $(this);
+
+                that._clearInputInterval();
+
+                if (!that.inputInterval) that.inputInterval = setTimeout(function(){
+                    var colorGroup = input.closest(".color-block");
+                    var colorType;
+                    var color, parts;
+
+                    if (colorGroup.hasClass("color-hex")) {
+                        colorType = "hex";
+                    } else if (colorGroup.hasClass("color-rgb")) {
+                        colorType = "rgb";
+                    } else if (colorGroup.hasClass("color-rgba")) {
+                        colorType = "rgba";
+                    } else if (colorGroup.hasClass("color-hsl")) {
+                        colorType = "hsl";
+                    } else if (colorGroup.hasClass("color-hsla")) {
+                        colorType = "hsla";
+                    } else if (colorGroup.hasClass("color-hsv")) {
+                        colorType = "hsv";
+                    } else if (colorGroup.hasClass("color-cmyk")) {
+                        colorType = "cmyk";
+                    }
+
+                    if (colorGroup.hasClass("as-string")) {
+                        color = input.val();
+                    } else {
+                        parts = [];
+                        $.each(colorGroup.find("input"), function(){
+                            parts.push(this.value);
+                        });
+                        color = colorType + "(" +parts.join(", ")+ ")";
+                    }
+                    if (color && Metro.colors.isColor(color)) {
+                        that.val(color);
+                    }
+
+                    that._clearInputInterval();
+                }, o.inputThreshold);
+            });
+
+            if (controller && controller.length) {
+                controller.on(Metro.events.inputchange, function(){
+                    that._clearInputInterval();
+                    if (!that.inputInterval) that.inputInterval = setTimeout(function(){
+                        var val = controller.val();
+                        if (val && Metro.colors.isColor(val)) {
+                            that.val(val);
+                        }
+                        that._clearInputInterval();
+                    }, o.inputThreshold);
+                });
+            }
+
+            alphaMap.on(Metro.events.startAll, function(e){
+
+                that._getAlphaValue(Utils.pageXY(e).y);
+                that.alphaCursor.addClass("dragging");
+
+                $(document).on(Metro.events.moveAll, function(e){
+                    e.preventDefault();
+                    that._getAlphaValue(Utils.pageXY(e).y);
+                }, {ns: that.id, passive: false});
+
+                $(document).on(Metro.events.stopAll, function(){
+                    that.alphaCursor.removeClass("dragging");
+                    $(document).off(Metro.events.moveAll, {ns: that.id});
+                    $(document).off(Metro.events.stopAll, {ns: that.id});
+                }, {ns: that.id});
+            });
+
+            hueMap.on(Metro.events.startAll, function(e){
+
+                that._getHueColor(Utils.pageXY(e).y);
+                that.hueCursor.addClass("dragging");
+
+                $(document).on(Metro.events.moveAll, function(e){
+                    e.preventDefault();
+                    that._getHueColor(Utils.pageXY(e).y);
+                }, {ns: that.id, passive: false});
+
+                $(document).on(Metro.events.stopAll, function(){
+                    that.hueCursor.removeClass("dragging");
+                    $(document).off(Metro.events.moveAll, {ns: that.id});
+                    $(document).off(Metro.events.stopAll, {ns: that.id});
+                }, {ns: that.id});
+            });
+
+            shadeMap.on(Metro.events.startAll, function(e){
+
+                that._getShadeColor(Utils.pageXY(e).x, Utils.pageXY(e).y);
+                that.shadeCursor.addClass("dragging");
+
+                $(document).on(Metro.events.moveAll, function(e){
+                    e.preventDefault();
+                    that._getShadeColor(Utils.pageXY(e).x, Utils.pageXY(e).y);
+                }, {ns: that.id, passive: false});
+
+                $(document).on(Metro.events.stopAll, function(){
+                    that.shadeCursor.removeClass("dragging");
+                    $(document).off(Metro.events.moveAll, {ns: that.id});
+                    $(document).off(Metro.events.stopAll, {ns: that.id});
+                }, {ns: that.id})
+            });
+
+            element.on("click", ".swatch", function(){
+                that._colorToPos($(this).attr("data-color"));
+            });
+
+            element.on("click", ".add-button", function(){
+                var color = Metro.colors.toHEX(new Metro.colorPrimitive.HSL(that.hue, that.saturation, that.lightness)).toUpperCase();
+
+                if (that.userColors.indexOf(color) > -1) {
+                    return ;
+                }
+
+                that.userColors.push(color);
+
+                element.find(".user-colors").append(
+                    $("<button>")
+                        .attr("data-color", color)
+                        .attr("type", "button")
+                        .addClass("swatch user-swatch")
+                        .css({
+                            backgroundColor: color
+                        })
+                );
+            });
+
+            element.find("input[type=radio]").on("click", function(){
+                o.returnValueType = $(this).val();
+                that._setColorValues();
+            });
+        },
+
+        val: function(v){
+            var o = this.options;
+
+            if (!Utils.isValue(v) || !Metro.colors.isColor(v)) {
+                var res;
+                switch (o.returnValueType.toLowerCase()) {
+                    case "rgb":
+                        res = this.rgb;
+                        break;
+                    case "rgba":
+                        res = this.rgba;
+                        break;
+                    case "hsl":
+                        res = this.hsl;
+                        break;
+                    case "hsla":
+                        res = this.hsla;
+                        break;
+                    case "hsv":
+                        res = this.hsv;
+                        break;
+                    case "cmyk":
+                        res = this.cmyk;
+                        break;
+                    default: res = this.hex;
+                }
+                return o.returnAsString ? res.toString() : res;
+            }
+
+            if (!Metro.colors.isColor(v)) {
+                return ;
+            }
+
+            this._colorToPos(Metro.colors.parse(v));
+        },
+
+        user: function(v){
+            if (!Utils.isValue(v)) {
+                return this.userColors;
+            }
+
+            if (!Array.isArray(v) && typeof v !== "string") {
+                return ;
+            }
+
+            if (typeof v === "string") {
+                this.userColors = v.toArray(",").map(function (el){return el.toUpperCase();});
+            } else {
+                this.userColors = v.map(function (el){return el.toUpperCase();});
+            }
+
+            this._fillUserColors();
+        },
+
+        _fillUserColors: function(){
+            var colors = this.element.find(".user-colors").clear();
+
+            $.each(this.userColors, function(){
+                var color = this;
+                colors.append(
+                    $("<button>")
+                        .attr("data-color", color)
+                        .attr("type", "button")
+                        .addClass("swatch user-swatch")
+                        .css({
+                            backgroundColor: color
+                        })
+                )
+            });
+        },
+
+        changeAttribute: function(attr, newValue){
+            var o = this.options;
+
+            if (attr === "data-return-value-type") {
+                o.returnValueType = newValue;
+            }
+
+            if (attr === "data-return-as-string") {
+                o.returnValueType = Utils.bool(newValue);
+            }
+        },
+
+        destroy: function(){
+            this.element.remove();
+        }
+    });
+
+    Metro.defaults.ColorSelectorDefaultConfig = ColorSelectorDefaultConfig;
+}(Metro, m4q));
+
+
+(function(Metro, $) {
+    'use strict';
     var Types = {
         HEX: "hex",
         HEXA: "hexa",
@@ -11582,14 +13487,10 @@ $.noConflict = function() {
 
     var ColorsDefaultConfig = {
         angle: 30,
-        algorithm: 1,
-        step: 0.1,
-        distance: 5,
-        tint1: 0.8,
-        tint2: 0.4,
-        shade1: 0.6,
-        shade2: 0.3,
-        alpha: 1
+        resultType: 'hex',
+        results: 6,
+        baseLight: "#ffffff",
+        baseDark: "self"
     };
 
     // function HEX(r, g, b) {
@@ -11602,6 +13503,25 @@ $.noConflict = function() {
     //     return "#" + [this.r, this.g, this.b].join("");
     // }
 
+    // function dec2hex(d){
+    //     return Math.round(parseFloat(d) * 255).toString(16);
+    // }
+    //
+    // function hex2dec(h){
+    //     return (parseInt(h, 16) / 255);
+    // }
+
+    function shift(h, angle){
+        h += angle;
+        while (h >= 360.0) h -= 360.0;
+        while (h < 0.0) h += 360.0;
+        return h;
+    }
+
+    function clamp(val){
+        return Math.min(1, Math.max(0, val));
+    }
+
     function RGB(r, g, b){
         this.r = r || 0;
         this.g = g || 0;
@@ -11609,18 +13529,18 @@ $.noConflict = function() {
     }
 
     RGB.prototype.toString = function(){
-        return "rgb(" + [this.r, this.g, this.b].join(",") + ")";
+        return "rgb(" + [this.r, this.g, this.b].join(", ") + ")";
     }
 
     function RGBA(r, g, b, a){
         this.r = r || 0;
         this.g = g || 0;
         this.b = b || 0;
-        this.a = typeof a !== "undefined" ? a ? a : 1 : 1;
+        this.a = a === 0 ? 0 : a || 1;
     }
 
     RGBA.prototype.toString = function(){
-        return "rgba(" + [this.r, this.g, this.b, this.a].join(",") + ")";
+        return "rgba(" + [this.r, this.g, this.b, parseFloat(this.a).toFixed(2)].join(", ") + ")";
     }
 
     function HSV(h, s, v){
@@ -11629,8 +13549,12 @@ $.noConflict = function() {
         this.v = v || 0;
     }
 
+    HSV.prototype.toString2 = function(){
+        return "hsv(" + [this.h, this.s, this.v].join(", ") + ")";
+    }
+
     HSV.prototype.toString = function(){
-        return "hsv(" + [this.h, this.s, this.v].join(",") + ")";
+        return "hsv(" + [Math.round(this.h), Math.round(this.s*100)+"%", Math.round(this.v*100)+"%"].join(", ") + ")";
     }
 
     function HSL(h, s, l){
@@ -11639,19 +13563,27 @@ $.noConflict = function() {
         this.l = l || 0;
     }
 
+    HSL.prototype.toString2 = function(){
+        return "hsl(" + [this.h, this.s, this.l].join(", ") + ")";
+    }
+
     HSL.prototype.toString = function(){
-        return "hsl(" + [this.h, this.s, this.l].join(",") + ")";
+        return "hsl(" + [Math.round(this.h), Math.round(this.s*100)+"%", Math.round(this.l*100)+"%"].join(", ") + ")";
     }
 
     function HSLA(h, s, l, a){
         this.h = h || 0;
         this.s = s || 0;
         this.l = l || 0;
-        this.a = typeof a !== "undefined" ? a ? a : 1 : 1;
+        this.a = a === 0 ? 0 : a || 1;
+    }
+
+    HSLA.prototype.toString2 = function(){
+        return "hsla(" + [this.h, this.s, this.l, this.a].join(", ") + ")";
     }
 
     HSLA.prototype.toString = function(){
-        return "hsla(" + [this.h, this.s, this.l, this.a].join(",") + ")";
+        return "hsla(" + [Math.round(this.h), Math.round(this.s*100)+"%", Math.round(this.l*100)+"%", parseFloat(this.a).toFixed(2)].join(", ") + ")";
     }
 
     function CMYK(c, m, y, k){
@@ -11662,7 +13594,7 @@ $.noConflict = function() {
     }
 
     CMYK.prototype.toString = function(){
-        return "cmyk(" + [this.c, this.m, this.y, this.k].join(",") + ")";
+        return "cmyk(" + [this.c, this.m, this.y, this.k].join(", ") + ")";
     }
 
     var Colors = {
@@ -11698,136 +13630,136 @@ $.noConflict = function() {
         },
 
         standard: {
-            aliceBlue: "#f0f8ff",
-            antiqueWhite: "#faebd7",
+            aliceblue: "#f0f8ff",
+            antiquewhite: "#faebd7",
             aqua: "#00ffff",
             aquamarine: "#7fffd4",
             azure: "#f0ffff",
             beige: "#f5f5dc",
             bisque: "#ffe4c4",
             black: "#000000",
-            blanchedAlmond: "#ffebcd",
+            blanchedalmond: "#ffebcd",
             blue: "#0000ff",
-            blueViolet: "#8a2be2",
+            blueviolet: "#8a2be2",
             brown: "#a52a2a",
-            burlyWood: "#deb887",
-            cadetBlue: "#5f9ea0",
+            burlywood: "#deb887",
+            cadetblue: "#5f9ea0",
             chartreuse: "#7fff00",
             chocolate: "#d2691e",
             coral: "#ff7f50",
-            cornflowerBlue: "#6495ed",
+            cornflowerblue: "#6495ed",
             cornsilk: "#fff8dc",
             crimson: "#dc143c",
             cyan: "#00ffff",
-            darkBlue: "#00008b",
-            darkCyan: "#008b8b",
-            darkGoldenRod: "#b8860b",
-            darkGray: "#a9a9a9",
-            darkGreen: "#006400",
-            darkKhaki: "#bdb76b",
-            darkMagenta: "#8b008b",
-            darkOliveGreen: "#556b2f",
-            darkOrange: "#ff8c00",
-            darkOrchid: "#9932cc",
-            darkRed: "#8b0000",
-            darkSalmon: "#e9967a",
-            darkSeaGreen: "#8fbc8f",
-            darkSlateBlue: "#483d8b",
-            darkSlateGray: "#2f4f4f",
-            darkTurquoise: "#00ced1",
-            darkViolet: "#9400d3",
-            deepPink: "#ff1493",
-            deepSkyBlue: "#00bfff",
-            dimGray: "#696969",
-            dodgerBlue: "#1e90ff",
-            fireBrick: "#b22222",
-            floralWhite: "#fffaf0",
-            forestGreen: "#228b22",
+            darkblue: "#00008b",
+            darkcyan: "#008b8b",
+            darkgoldenrod: "#b8860b",
+            darkgray: "#a9a9a9",
+            darkgreen: "#006400",
+            darkkhaki: "#bdb76b",
+            darkmagenta: "#8b008b",
+            darkolivegreen: "#556b2f",
+            darkorange: "#ff8c00",
+            darkorchid: "#9932cc",
+            darkred: "#8b0000",
+            darksalmon: "#e9967a",
+            darkseagreen: "#8fbc8f",
+            darkslateblue: "#483d8b",
+            darkslategray: "#2f4f4f",
+            darkturquoise: "#00ced1",
+            darkviolet: "#9400d3",
+            deeppink: "#ff1493",
+            deepskyblue: "#00bfff",
+            dimgray: "#696969",
+            dodgerblue: "#1e90ff",
+            firebrick: "#b22222",
+            floralwhite: "#fffaf0",
+            forestgreen: "#228b22",
             fuchsia: "#ff00ff",
             gainsboro: "#DCDCDC",
-            ghostWhite: "#F8F8FF",
+            ghostwhite: "#F8F8FF",
             gold: "#ffd700",
-            goldenRod: "#daa520",
+            goldenrod: "#daa520",
             gray: "#808080",
             green: "#008000",
-            greenYellow: "#adff2f",
-            honeyDew: "#f0fff0",
-            hotPink: "#ff69b4",
-            indianRed: "#cd5c5c",
+            greenyellow: "#adff2f",
+            honeydew: "#f0fff0",
+            hotpink: "#ff69b4",
+            indianred: "#cd5c5c",
             indigo: "#4b0082",
             ivory: "#fffff0",
             khaki: "#f0e68c",
             lavender: "#e6e6fa",
-            lavenderBlush: "#fff0f5",
-            lawnGreen: "#7cfc00",
-            lemonChiffon: "#fffacd",
-            lightBlue: "#add8e6",
-            lightCoral: "#f08080",
-            lightCyan: "#e0ffff",
-            lightGoldenRodYellow: "#fafad2",
-            lightGray: "#d3d3d3",
-            lightGreen: "#90ee90",
-            lightPink: "#ffb6c1",
-            lightSalmon: "#ffa07a",
-            lightSeaGreen: "#20b2aa",
-            lightSkyBlue: "#87cefa",
-            lightSlateGray: "#778899",
-            lightSteelBlue: "#b0c4de",
-            lightYellow: "#ffffe0",
+            lavenderblush: "#fff0f5",
+            lawngreen: "#7cfc00",
+            lemonchiffon: "#fffacd",
+            lightblue: "#add8e6",
+            lightcoral: "#f08080",
+            lightcyan: "#e0ffff",
+            lightgoldenrodyellow: "#fafad2",
+            lightgray: "#d3d3d3",
+            lightgreen: "#90ee90",
+            lightpink: "#ffb6c1",
+            lightsalmon: "#ffa07a",
+            lightseagreen: "#20b2aa",
+            lightskyblue: "#87cefa",
+            lightslategray: "#778899",
+            lightsteelblue: "#b0c4de",
+            lightyellow: "#ffffe0",
             lime: "#00ff00",
-            limeGreen: "#32dc32",
+            limegreen: "#32dc32",
             linen: "#faf0e6",
             magenta: "#ff00ff",
             maroon: "#800000",
-            mediumAquaMarine: "#66cdaa",
-            mediumBlue: "#0000cd",
-            mediumOrchid: "#ba55d3",
-            mediumPurple: "#9370db",
-            mediumSeaGreen: "#3cb371",
-            mediumSlateBlue: "#7b68ee",
-            mediumSpringGreen: "#00fa9a",
-            mediumTurquoise: "#48d1cc",
-            mediumVioletRed: "#c71585",
-            midnightBlue: "#191970",
-            mintCream: "#f5fffa",
-            mistyRose: "#ffe4e1",
+            mediumaquamarine: "#66cdaa",
+            mediumblue: "#0000cd",
+            mediumorchid: "#ba55d3",
+            mediumpurple: "#9370db",
+            mediumseagreen: "#3cb371",
+            mediumslateblue: "#7b68ee",
+            mediumspringgreen: "#00fa9a",
+            mediumturquoise: "#48d1cc",
+            mediumvioletred: "#c71585",
+            midnightblue: "#191970",
+            mintcream: "#f5fffa",
+            mistyrose: "#ffe4e1",
             moccasin: "#ffe4b5",
-            navajoWhite: "#ffdead",
+            navajowhite: "#ffdead",
             navy: "#000080",
-            oldLace: "#fdd5e6",
+            oldlace: "#fdd5e6",
             olive: "#808000",
-            oliveDrab: "#6b8e23",
+            olivedrab: "#6b8e23",
             orange: "#ffa500",
-            orangeRed: "#ff4500",
+            orangered: "#ff4500",
             orchid: "#da70d6",
-            paleGoldenRod: "#eee8aa",
-            paleGreen: "#98fb98",
-            paleTurquoise: "#afeeee",
-            paleVioletRed: "#db7093",
-            papayaWhip: "#ffefd5",
-            peachPuff: "#ffdab9",
+            palegoldenrod: "#eee8aa",
+            palegreen: "#98fb98",
+            paleturquoise: "#afeeee",
+            palevioletred: "#db7093",
+            papayawhip: "#ffefd5",
+            peachpuff: "#ffdab9",
             peru: "#cd853f",
             pink: "#ffc0cb",
             plum: "#dda0dd",
-            powderBlue: "#b0e0e6",
+            powderblue: "#b0e0e6",
             purple: "#800080",
-            rebeccaPurple: "#663399",
+            rebeccapurple: "#663399",
             red: "#ff0000",
-            rosyBrown: "#bc8f8f",
-            royalBlue: "#4169e1",
-            saddleBrown: "#8b4513",
+            rosybrown: "#bc8f8f",
+            royalblue: "#4169e1",
+            saddlebrown: "#8b4513",
             salmon: "#fa8072",
-            sandyBrown: "#f4a460",
-            seaGreen: "#2e8b57",
-            seaShell: "#fff5ee",
+            sandybrown: "#f4a460",
+            seagreen: "#2e8b57",
+            seashell: "#fff5ee",
             sienna: "#a0522d",
             silver: "#c0c0c0",
-            slyBlue: "#87ceeb",
-            slateBlue: "#6a5acd",
-            slateGray: "#708090",
+            slyblue: "#87ceeb",
+            slateblue: "#6a5acd",
+            slategray: "#708090",
             snow: "#fffafa",
-            springGreen: "#00ff7f",
-            steelBlue: "#4682b4",
+            springgreen: "#00ff7f",
+            steelblue: "#4682b4",
             tan: "#d2b48c",
             teal: "#008080",
             thistle: "#d8bfd8",
@@ -11836,9 +13768,9 @@ $.noConflict = function() {
             violet: "#ee82ee",
             wheat: "#f5deb3",
             white: "#ffffff",
-            whiteSmoke: "#f5f5f5",
+            whitesmoke: "#f5f5f5",
             yellow: "#ffff00",
-            yellowGreen: "#9acd32"
+            yellowgreen: "#9acd32"
         },
 
         all: {},
@@ -11898,9 +13830,12 @@ $.noConflict = function() {
             var _color = color.toLowerCase().trim();
 
             var a = _color
-                .replace(/[^\d.,]/g, "")
+                .replace(/[^%\d.,]/g, "")
                 .split(",")
                 .map(function(v) {
+                    if (v.indexOf('%') > -1) {
+                        v = ""+parseInt(v)/100;
+                    }
                     return v.indexOf(".") > -1 ? parseFloat(v) : parseInt(v);
                 });
 
@@ -12008,7 +13943,16 @@ $.noConflict = function() {
         },
 
         check: function(color, type){
-            if (!this["is"+type.toUpperCase()](color)) {
+            var that = this, checkFor = typeof type === "string" ? [type] : type;
+            var result = false;
+
+            $.each(checkFor, function(){
+                if (that["is"+this.toUpperCase()](color)) {
+                    result = true;
+                }
+            });
+
+            if (!result) {
                 throw new Error("Value is not a " + type + " color type!");
             }
         },
@@ -12215,7 +14159,7 @@ $.noConflict = function() {
         },
 
         hsl2hsv: function(color){
-            this.check(color, "hsl");
+            this.check(color, ["hsl", "hsla"]);
             var h, s, v, l;
             h = color.h;
             l = color.l * 2;
@@ -12370,49 +14314,20 @@ $.noConflict = function() {
         },
 
         grayscale: function(color){
-            var rgb = this.toRGB(color);
-            var type = this.colorType(color).toLowerCase();
-            var gray = Math.round(rgb.r * 0.2125 + rgb.g * 0.7154 + rgb.b * 0.0721);
-            var mono = new RGB(gray, gray, gray);
-
-            return this.toColor(mono, type);
+            return this.desaturate(color, 100);
         },
 
-        darken: function(color, amount){
-            amount = amount || 10;
-            return this.lighten(color, -1 * Math.abs(amount));
-        },
+        lighten: function(color, amount){
+            var hsl, type, alpha;
 
-        lighten: function(val, amount){
-            var type, res, alpha, ring;
-            var color = typeof val === "string" ? this.parse(val) : val;
+            if (!this.isColor(color)) {
+                throw new Error(color + " is not a valid color value!");
+            }
 
-            amount = amount || 10;
-
-            var calc = function (_color, _amount) {
-                var r, g, b;
-                var col = _color.slice(1);
-
-                var num = parseInt(col, 16);
-                r = (num >> 16) + _amount;
-
-                if (r > 255) r = 255;
-                else if (r < 0) r = 0;
-
-                b = ((num >> 8) & 0x00ff) + _amount;
-
-                if (b > 255) b = 255;
-                else if (b < 0) b = 0;
-
-                g = (num & 0x0000ff) + _amount;
-
-                if (g > 255) g = 255;
-                else if (g < 0) g = 0;
-
-                return "#" + (g | (b << 8) | (r << 16)).toString(16);
-            };
-
-            ring = amount > 0;
+            amount = (amount === 0) ? 0 : (amount || 10);
+            hsl = this.toHSL(color);
+            hsl.l += amount / 100;
+            hsl.l = clamp(hsl.l);
 
             type = this.colorType(color).toLowerCase();
 
@@ -12420,12 +14335,92 @@ $.noConflict = function() {
                 alpha = color.a;
             }
 
-            do {
-                res = calc(this.toHEX(color), amount);
-                ring ? amount-- : amount++;
-            } while (res.length < 7);
+            return this.toColor(hsl, type, alpha);
+        },
 
-            return this.toColor(res, type, alpha);
+        darken: function(color, amount){
+            return this.lighten(color, -amount);
+        },
+
+        spin: function(color, amount){
+            var hsl, type, alpha, hue;
+
+            if (!this.isColor(color)) {
+                throw new Error(color + " is not a valid color value!");
+            }
+
+            hsl = this.toHSL(color);
+            hue = (hsl.h + amount) % 360;
+            hsl.h = hue < 0 ? 360 + hue : hue;
+
+            type = this.colorType(color).toLowerCase();
+
+            if (type === Types.RGBA || type === Types.HSLA) {
+                alpha = color.a;
+            }
+
+            return this.toColor(hsl, type, alpha);
+        },
+
+        brighten: function(color, amount){
+            var rgb, type, alpha;
+
+            if (!this.isColor(color)) {
+                throw new Error(color + " is not a valid color value!");
+            }
+
+            rgb = this.toRGB(color);
+            rgb.r = Math.max(0, Math.min(255, rgb.r - Math.round(255 * - (amount / 100))));
+            rgb.g = Math.max(0, Math.min(255, rgb.g - Math.round(255 * - (amount / 100))));
+            rgb.b = Math.max(0, Math.min(255, rgb.b - Math.round(255 * - (amount / 100))));
+
+            type = this.colorType(color).toLowerCase();
+
+            if (type === Types.RGBA || type === Types.HSLA) {
+                alpha = color.a;
+            }
+
+            return this.toColor(rgb, type, alpha);
+        },
+
+        saturate: function(color, amount){
+            var hsl, type, alpha;
+
+            if (!this.isColor(color)) {
+                throw new Error(color + " is not a valid color value!");
+            }
+
+            hsl = this.toHSL(color);
+            hsl.s += amount / 100;
+            hsl.s = clamp(hsl.s);
+
+            type = this.colorType(color).toLowerCase();
+
+            if (type === Types.RGBA || type === Types.HSLA) {
+                alpha = color.a;
+            }
+
+            return this.toColor(hsl, type, alpha);
+        },
+
+        desaturate: function(color, amount){
+            var hsl, type, alpha;
+
+            if (!this.isColor(color)) {
+                throw new Error(color + " is not a valid color value!");
+            }
+
+            hsl = this.toHSL(color);
+            hsl.s -= amount / 100;
+            hsl.s = clamp(hsl.s);
+
+            type = this.colorType(color).toLowerCase();
+
+            if (type === Types.RGBA || type === Types.HSLA) {
+                alpha = color.a;
+            }
+
+            return this.toColor(hsl, type, alpha);
         },
 
         hueShift: function(color, hue, saturation, value){
@@ -12457,261 +14452,277 @@ $.noConflict = function() {
             return this.toColor(hsv, type, alpha);
         },
 
-        createScheme: function(color, name, format, options){
+        shade: function(color, amount){
+            if (!this.isColor(color)) {
+                throw new Error(color + " is not a valid color value!");
+            }
+
+            amount /= 100;
+
+            var type = this.colorType(color).toLowerCase();
+            var rgb = this.toRGB(color);
+            var t = amount < 0 ? 0 : 255;
+            var p = amount < 0 ? amount * -1 : amount;
+            var r, g, b, a;
+
+            r = (Math.round((t - rgb.r) * p) + rgb.r);
+            g = (Math.round((t - rgb.g) * p) + rgb.g);
+            b = (Math.round((t - rgb.b) * p) + rgb.b);
+
+            if (type === Types.RGBA || type === Types.HSLA) {
+                a = color.a;
+            }
+
+            return this.toColor(new RGB(r, g, b), type, a);
+        },
+
+        mix: function(color1, color2, amount){
+
+            amount = (amount === 0) ? 0 : (amount || 50);
+
+            var rgb = new RGB(0,0,0);
+            var rgb1 = this.toRGB(color1);
+            var rgb2 = this.toRGB(color2);
+
+            var p = amount / 100;
+
+            rgb.r = Math.round(((rgb2.r - rgb1.r) * p) + rgb1.r);
+            rgb.g = Math.round(((rgb2.g - rgb1.g) * p) + rgb1.g);
+            rgb.b = Math.round(((rgb2.b - rgb1.b) * p) + rgb1.b);
+
+            return this.toHEX(rgb);
+        },
+
+        multiply: function(color1, color2){
+            var rgb1 = this.toRGB(color1);
+            var rgb2 = this.toRGB(color2);
+            var rgb = new RGB();
+
+            rgb1.b = Math.floor(rgb1.b * rgb2.b / 255);
+            rgb1.g = Math.floor(rgb1.g * rgb2.g / 255);
+            rgb1.r = Math.floor(rgb1.r * rgb2.r / 255);
+
+            return this.toHEX(rgb);
+        },
+
+        materialPalette: function(color, options){
             var opt = $.extend({}, ColorsDefaultConfig, options);
-            var i, scheme = [], hsv, rgb, h, s, v;
+            var baseLight = opt.baseLight;
+            var baseDark = opt.baseDark === "self" || !opt.baseDark ? this.multiply(color, color) : opt.baseDark;
+
+            return {
+                "50": this.mix(baseLight, color, 10),
+                "100": this.mix(baseLight, color, 30),
+                "200": this.mix(baseLight, color, 50),
+                "300": this.mix(baseLight, color, 70),
+                "400": this.mix(baseLight, color, 85),
+                "500": this.mix(baseLight, color, 100),
+                "600": this.mix(baseDark, color, 92),
+                "700": this.mix(baseDark, color, 83),
+                "800": this.mix(baseDark, color, 74),
+                "900": this.mix(baseDark, color, 65),
+
+                "A100": this.lighten(this.saturate(this.mix(baseDark, color, 15), 80), 65),
+                "A200": this.lighten(this.saturate(this.mix(baseDark, color, 15), 80), 55),
+                "A400": this.lighten(this.saturate(this.mix(baseLight, color, 100), 55), 10),
+                "A700": this.lighten(this.saturate(this.mix(baseDark, color, 83), 65), 10)
+            };
+        },
+
+        monochromatic: function(color, options){
+            var opt = $.extend({}, ColorsDefaultConfig, options);
+            var returnAs = opt.resultType;
+            var results = opt.results;
+            var hsv = this.toHSV(color);
+            var h = hsv.h,
+                s = hsv.s,
+                v = hsv.v;
+            var result = [];
+            var mod = 1 / results;
             var self = this;
 
-            hsv = this.toHSV(color);
-            h = hsv.h;
-            s = hsv.s;
-            v = hsv.v;
-
-            if (this.isHSV(hsv) === false) {
-                console.warn("The value is a not supported color format!");
-                return false;
+            while (results--) {
+                result.push(new HSV(h, s, v));
+                v = (v + mod) % 1;
             }
 
-            function convert(source, format) {
-                var result;
-                switch (format) {
-                    case "hex":
-                        result = source.map(function (v) {
-                            return self.toHEX(v);
-                        });
-                        break;
-                    case "rgb":
-                        result = source.map(function (v) {
-                            return self.toRGB(v);
-                        });
-                        break;
-                    case "rgba":
-                        result = source.map(function (v) {
-                            return self.toRGBA(v, opt.alpha);
-                        });
-                        break;
-                    case "hsl":
-                        result = source.map(function (v) {
-                            return self.toHSL(v);
-                        });
-                        break;
-                    case "hsla":
-                        result = source.map(function (v) {
-                            return self.toHSLA(v, opt.alpha);
-                        });
-                        break;
-                    case "cmyk":
-                        result = source.map(function (v) {
-                            return self.toCMYK(v);
-                        });
-                        break;
-                    default:
-                        result = source;
-                }
+            return result.map(function(el){
+                return self["to"+returnAs.toUpperCase()](el);
+            });
+        },
 
-                return result;
+        complementary: function(color, options){
+            var opt = $.extend({}, ColorsDefaultConfig, options);
+            var hsl = this.toHSL(color);
+            var result;
+            var self = this;
+
+            var returnAs = opt.resultType;
+
+            result = [
+                hsl,
+                new HSL(shift(hsl.h, 180), hsl.s, hsl.l)
+            ];
+
+            return result.map(function(el){
+                return self["to"+returnAs.toUpperCase()](el);
+            });
+        },
+
+        splitComplementary: function(color, options){
+            var opt = $.extend({}, ColorsDefaultConfig, options);
+            var hsl = this.toHSL(color);
+            var h = hsl.h;
+            var result, self = this;
+
+            var returnAs = opt.resultType;
+            var angle = opt.angle;
+
+            result = [
+                hsl,
+                new HSL(shift(h, 180 - angle), hsl.s, hsl.l ),
+                new HSL(shift(h, 180 + angle), hsl.s, hsl.l )
+            ];
+
+            return result.map(function(el){
+                return self["to"+returnAs.toUpperCase()](el);
+            });
+        },
+
+        doubleComplementary: function(color, options){
+            var opt = $.extend({}, ColorsDefaultConfig, options);
+            var returnAs = opt.resultType;
+            var angle = opt.angle;
+            var hsl = this.toHSL(color);
+            var h = hsl.h;
+            var result, self = this;
+
+            result = [
+                hsl,
+                new HSL(shift(h, 180), hsl.s, hsl.l ),
+                new HSL(shift(h, angle), hsl.s, hsl.l ),
+                new HSL(shift(h, 180 + angle), hsl.s, hsl.l )
+            ];
+
+            return result.map(function(el){
+                return self["to"+returnAs.toUpperCase()](el);
+            });
+        },
+
+        square: function(color, options){
+            var opt = $.extend({}, ColorsDefaultConfig, options);
+            var returnAs = opt.resultType;
+            var result = [], i;
+            var hsl = this.toHSL(color);
+            var h = hsl.h , self = this;
+
+            result.push(hsl);
+
+            for (i = 1; i < 4; i++) {
+                h = shift(h, 90.0);
+                result.push(new HSL(h, hsl.s, hsl.l));
             }
 
-            function clamp(num, min, max) {
-                return Math.max(min, Math.min(num, max));
-            }
+            return result.map(function(el){
+                return self["to"+returnAs.toUpperCase()](el);
+            });
+        },
 
-            function toRange(a, b, c) {
-                return a < b ? b : a > c ? c : a;
-            }
+        tetradic: function(color, options){
+            var opt = $.extend({}, ColorsDefaultConfig, options);
+            var returnAs = opt.resultType;
+            var angle = opt.angle;
+            var result;
+            var hsl = this.toHSL(color);
+            var h = hsl.h;
+            var self = this;
 
-            function shift(h, s) {
-                h += s;
-                while (h >= 360.0) h -= 360.0;
-                while (h < 0.0) h += 360.0;
-                return h;
-            }
+            result = [
+                hsl,
+                new HSL(shift(h, 180), hsl.s, hsl.l),
+                new HSL(shift(h, 180 - angle), hsl.s, hsl.l),
+                new HSL(shift(h, -angle), hsl.s, hsl.l)
+            ];
 
-            switch (name) {
+            return result.map(function(el){
+                return self["to"+returnAs.toUpperCase()](el);
+            });
+        },
+
+        triadic: function(color, options){
+            var opt = $.extend({}, ColorsDefaultConfig, options);
+            var returnAs = opt.resultType;
+            var result;
+            var hsl = this.toHSL(color);
+            var h = hsl.h;
+            var self = this;
+
+            result = [
+                hsl,
+                new HSL(shift(h,120), hsl.s, hsl.l),
+                new HSL(shift(h,240), hsl.s, hsl.l)
+            ];
+
+            return result.map(function(el){
+                return self["to"+returnAs.toUpperCase()](el);
+            });
+        },
+
+        analogous: function(color, options){
+            var opt = $.extend({}, ColorsDefaultConfig, options);
+            var returnAs = opt.resultType;
+            var angle = opt.angle;
+
+            var hsl = this.toHSL(color);
+            var result, self = this;
+
+            result = [
+                hsl,
+                new HSL(shift(hsl.h, -angle), hsl.s, hsl.l),
+                new HSL(shift(hsl.h, +angle), hsl.s, hsl.l)
+            ];
+
+            return result.map(function(el){
+                return self["to"+returnAs.toUpperCase()](el);
+            });
+        },
+
+        createScheme: function(color, name, options){
+            switch (name.toLowerCase()) {
+                case "analogous":
+                case "analog": return this.analogous(color, options);
+
+                case "triadic":
+                case "triad": return this.triadic(color, options);
+
+                case "tetradic":
+                case "tetra": return this.tetradic(color, options);
+
                 case "monochromatic":
-                case "mono":
-                    if (opt.algorithm === 1) {
-                        rgb = this.hsv2rgb(hsv);
-                        rgb.r = toRange(
-                            Math.round(rgb.r + (255 - rgb.r) * opt.tint1),
-                            0,
-                            255
-                        );
-                        rgb.g = toRange(
-                            Math.round(rgb.g + (255 - rgb.g) * opt.tint1),
-                            0,
-                            255
-                        );
-                        rgb.b = toRange(
-                            Math.round(rgb.b + (255 - rgb.b) * opt.tint1),
-                            0,
-                            255
-                        );
-                        scheme.push(this.rgb2hsv(rgb));
-
-                        rgb = this.hsv2rgb(hsv);
-                        rgb.r = toRange(
-                            Math.round(rgb.r + (255 - rgb.r) * opt.tint2),
-                            0,
-                            255
-                        );
-                        rgb.g = toRange(
-                            Math.round(rgb.g + (255 - rgb.g) * opt.tint2),
-                            0,
-                            255
-                        );
-                        rgb.b = toRange(
-                            Math.round(rgb.b + (255 - rgb.b) * opt.tint2),
-                            0,
-                            255
-                        );
-                        scheme.push(this.rgb2hsv(rgb));
-
-                        scheme.push(hsv);
-
-                        rgb = this.hsv2rgb(hsv);
-                        rgb.r = toRange(Math.round(rgb.r * opt.shade1), 0, 255);
-                        rgb.g = toRange(Math.round(rgb.g * opt.shade1), 0, 255);
-                        rgb.b = toRange(Math.round(rgb.b * opt.shade1), 0, 255);
-                        scheme.push(this.rgb2hsv(rgb));
-
-                        rgb = this.hsv2rgb(hsv);
-                        rgb.r = toRange(Math.round(rgb.r * opt.shade2), 0, 255);
-                        rgb.g = toRange(Math.round(rgb.g * opt.shade2), 0, 255);
-                        rgb.b = toRange(Math.round(rgb.b * opt.shade2), 0, 255);
-                        scheme.push(this.rgb2hsv(rgb));
-
-                    } else if (opt.algorithm === 2) {
-
-                        scheme.push(hsv);
-                        for (i = 1; i <= opt.distance; i++) {
-                            v = clamp(v - opt.step, 0, 1);
-                            s = clamp(s - opt.step, 0, 1);
-                            scheme.push(new HSV(h, s, v));
-                        }
-
-                    } else if (opt.algorithm === 3) {
-
-                        scheme.push(hsv);
-                        for (i = 1; i <= opt.distance; i++) {
-                            v = clamp(v - opt.step, 0, 1);
-                            scheme.push(new HSV(h, s, v));
-                        }
-
-                    } else {
-
-                        v = clamp(hsv.v + opt.step * 2, 0, 1);
-                        scheme.push(new HSV(h, s, v));
-
-                        v = clamp(hsv.v + opt.step, 0, 1);
-                        scheme.push(new HSV(h, s, v));
-
-                        scheme.push(hsv);
-                        s = hsv.s;
-                        v = hsv.v;
-
-                        v = clamp(hsv.v - opt.step, 0, 1);
-                        scheme.push(new HSV(h, s, v));
-
-                        v = clamp(hsv.v - opt.step * 2, 0, 1);
-                        scheme.push(new HSV(h, s, v));
-
-                    }
-                    break;
+                case "mono": return this.monochromatic(color, options);
 
                 case "complementary":
                 case "complement":
-                case "comp":
-                    scheme.push(hsv);
-
-                    h = shift(hsv.h, 180.0);
-                    scheme.push(new HSV(h, s, v));
-                    break;
+                case "comp": return this.complementary(color, options);
 
                 case "double-complementary":
                 case "double-complement":
-                case "double":
-                    scheme.push(hsv);
-
-                    h = shift(h, 180.0);
-                    scheme.push(new HSV(h, s, v));
-
-                    h = shift(h, opt.angle);
-                    scheme.push(new HSV(h, s, v));
-
-                    h = shift(h, 180.0);
-                    scheme.push(new HSV(h, s, v));
-
-                    break;
-
-                case "analogous":
-                case "analog":
-                    h = shift(h, opt.angle);
-                    scheme.push(new HSV(h, s, v));
-
-                    scheme.push(hsv);
-
-                    h = shift(hsv.h, 0.0 - opt.angle);
-                    scheme.push(new HSV(h, s, v));
-
-                    break;
-
-                case "triadic":
-                case "triad":
-                    scheme.push(hsv);
-                    for (i = 1; i < 3; i++) {
-                        h = shift(h, 120.0);
-                        scheme.push(new HSV(h, s, v));
-                    }
-                    break;
-
-                case "tetradic":
-                case "tetra":
-                    scheme.push(hsv);
-
-                    h = shift(hsv.h, 180.0);
-                    scheme.push(new HSV(h, s, v));
-
-                    h = shift(hsv.h, -1 * opt.angle);
-                    scheme.push(new HSV(h, s, v));
-
-                    h = shift(h, 180.0);
-                    scheme.push(new HSV(h, s, v));
-
-                    break;
-
-                case "square":
-                    scheme.push(hsv);
-                    for (i = 1; i < 4; i++) {
-                        h = shift(h, 90.0);
-                        scheme.push(new HSV(h, s, v));
-                    }
-                    break;
+                case "double": return this.doubleComplementary(color, options);
 
                 case "split-complementary":
                 case "split-complement":
-                case "split":
-                    h = shift(h, 180.0 - opt.angle);
-                    scheme.push(new HSV(h, s, v));
+                case "split": return this.splitComplementary(color, options);
 
-                    scheme.push(hsv);
-
-                    h = shift(hsv.h, 180.0 + opt.angle);
-                    scheme.push(new HSV(h, s, v));
-                    break;
-
-                default:
-                    console.warn("Unknown scheme name");
+                case "square": return this.square(color, options);
+                case "material": return this.materialPalette(color, options);
             }
-
-            return convert(scheme, format);
         },
 
         getScheme: function(){
             return this.createScheme.apply(this, arguments)
         },
 
-        mix: function(val1, val2, returnAs){
+        add: function(val1, val2, returnAs){
             var color1 = typeof val1 === "string" ? this.parse(val1) : val1;
             var color2 = typeof val2 === "string" ? this.parse(val2) : val2;
             var c1 = this.toRGBA(color1);
@@ -12970,13 +14981,13 @@ $.noConflict = function() {
             return Colors.equal(this._value, color);
         },
 
-        toMix: function(color){
-            this._value = Colors.mix(this._value, color, this._type);
+        toAdd: function(color){
+            this._value = Colors.add(this._value, color, this._type);
             return this;
         },
 
-        mix: function(color){
-            return new Color(Colors.mix(this._value, color, this._type));
+        add: function(color){
+            return new Color(Colors.add(this._value, color, this._type));
         }
     }
 
@@ -13192,7 +15203,8 @@ $.noConflict = function() {
         countdownDeferred: 0,
         stopOnBlur: true,
         animate: "none",
-        animationFunc: "linear",
+        ease: "linear",
+        duration: 600,
         inputFormat: null,
         locale: METRO_LOCALE,
         days: 0,
@@ -13240,7 +15252,8 @@ $.noConflict = function() {
                     d: 0, h: 0, m: 0, s: 0
                 },
                 inactiveTab: false,
-                id: Utils.elementId("countdown")
+                id: Utils.elementId("countdown"),
+                duration: 600
             });
 
             return this;
@@ -13250,6 +15263,8 @@ $.noConflict = function() {
             var o = this.options;
 
             this.locale = Metro.locales[o.locale] !== undefined ? Metro.locales[o.locale] : Metro.locales["en-US"];
+
+            this.duration = (+o.duration <= 0 || +o.duration >= 1000) ? 600 : +o.duration;
 
             this._build();
             this._createEvents();
@@ -13468,7 +15483,7 @@ $.noConflict = function() {
         draw: function(part, value){
             var element = this.element, o = this.options;
             var digits, digits_length, digit_value, digit_current, digit;
-            var len, i, duration = 900;
+            var len, i, duration = this.duration;
 
             var slideDigit = function(digit, value){
                 var digit_copy, height = digit.height();
@@ -13487,7 +15502,7 @@ $.noConflict = function() {
                             opacity: 0
                         },
                         dur: duration,
-                        ease: o.animationFunc,
+                        ease: o.ease,
                         onDone: function(){
                             $(this).remove();
                         }
@@ -13501,7 +15516,7 @@ $.noConflict = function() {
                             opacity: 1
                         },
                         dur: duration,
-                        ease: o.animationFunc
+                        ease: o.ease
                     });
             };
 
@@ -13520,7 +15535,7 @@ $.noConflict = function() {
                             opacity: 0
                         },
                         dur: duration / 2,
-                        ease: o.animationFunc,
+                        ease: o.ease,
                         onDone: function(){
                             $(this).remove();
                         }
@@ -13533,7 +15548,7 @@ $.noConflict = function() {
                             opacity: 1
                         },
                         dur: duration,
-                        ease: o.animationFunc
+                        ease: o.ease
                     });
             };
 
@@ -13557,7 +15572,7 @@ $.noConflict = function() {
                             fontSize: 0
                         },
                         dur: duration,
-                        ease: o.animationFunc,
+                        ease: o.ease,
                         onDone: function(){
                             $(this).remove();
                         }
@@ -13572,7 +15587,7 @@ $.noConflict = function() {
                             fontSize: [0, fs]
                         },
                         dur: duration,
-                        ease: o.animationFunc
+                        ease: o.ease
                     });
             };
 
@@ -13725,10 +15740,11 @@ $.noConflict = function() {
             this.i18n(locale);
         },
 
-        changeAttribute: function(attributeName){
-            switch (attributeName) {
+        changeAttribute: function(attr, newVal){
+            switch (attr) {
                 case "data-pause": this.togglePlay(); break;
-                case "data-locale": this.changeAttrLocale(); break;
+                case "data-locale": this.i18n(newVal); break;
+                case "data-duration": this.duration = +newVal <= 0 || +newVal >= 1000 ? 600 : +newVal; break;
             }
         },
 
@@ -16196,10 +18212,11 @@ $.noConflict = function() {
                 }, {ns: that.id, passive: false});
 
                 $(document).on(Metro.events.stopAll, function(){
-                    element.css({
-                        cursor: that.backup.cursor,
-                        zIndex: that.backup.zIndex
-                    }).removeClass("draggable");
+                    // element.css({
+                    //     cursor: that.backup.cursor,
+                    //     zIndex: that.backup.zIndex
+                    // });
+                    element.removeClass("draggable");
 
                     if (that.drag) {
                         $(document).off(Metro.events.moveAll, {ns: that.id});
@@ -16323,8 +18340,8 @@ $.noConflict = function() {
                 if (element.css('display') !== 'none' && !element.hasClass('keep-open')) {
                     that._close(element);
                 } else {
-                    $('[data-role=dropdown]').each(function(i, el){
-                        if (!element.parents('[data-role=dropdown]').is(el) && !$(el).hasClass('keep-open') && $(el).css('display') !== 'none') {
+                    $('[data-role*=dropdown]').each(function(i, el){
+                        if (!element.parents('[data-role*=dropdown]').is(el) && !$(el).hasClass('keep-open') && $(el).css('display') !== 'none') {
                             if (!Utils.isValue(o.dropFilter)) {
                                 that._close(el);
                             } else {
@@ -18214,6 +20231,7 @@ $.noConflict = function() {
         overlay: true,
         overlayColor: '#000000',
         overlayAlpha: .5,
+        overlayClickClose: false,
         autoHide: 0,
         removeOnClose: false,
         closeButton: true,
@@ -18353,8 +20371,16 @@ $.noConflict = function() {
         open: function(){
             var that = this, element = this.element, o = this.options;
 
-            if (o.overlay === true) {
+            // if (o.overlay === true) {
+            //     this.overlay.appendTo($("body"));
+            // }
+            if (o.overlay === true && $(".overlay").length === 0) {
                 this.overlay.appendTo($("body"));
+                if (o.overlayClickClose === true) {
+                    this.overlay.on(Metro.events.click, function(){
+                        that.close();
+                    });
+                }
             }
 
             this._setPosition();
@@ -18848,10 +20874,12 @@ $.noConflict = function() {
     var InputDefaultConfig = {
         inputDeferred: 0,
 
-        // mask: null,
         label: "",
 
         autocomplete: null,
+        autocompleteUrl: null,
+        autocompleteUrlMethod: "GET",
+        autocompleteUrlKey: null,
         autocompleteDivider: ",",
         autocompleteListHeight: 200,
 
@@ -19025,8 +21053,14 @@ $.noConflict = function() {
                 });
             }
 
-            if (!Utils.isNull(o.autocomplete)) {
+            if (!Utils.isNull(o.autocomplete) || !Utils.isNull(o.autocompleteUrl)) {
+                $("<div>").addClass("autocomplete-list").css({
+                    maxHeight: o.autocompleteListHeight,
+                    display: "none"
+                }).appendTo(container);
+            }
 
+            if (Utils.isValue(o.autocomplete)) {
                 var autocomplete_obj = Utils.isObject(o.autocomplete);
 
                 if (autocomplete_obj !== false) {
@@ -19034,10 +21068,26 @@ $.noConflict = function() {
                 } else {
                     this.autocomplete = o.autocomplete.toArray(o.autocompleteDivider);
                 }
-                $("<div>").addClass("autocomplete-list").css({
-                    maxHeight: o.autocompleteListHeight,
-                    display: "none"
-                }).appendTo(container);
+            }
+
+            if (Utils.isValue(o.autocompleteUrl)) {
+                $.ajax({
+                    url: o.autocompleteUrl,
+                    method: o.autocompleteUrlMethod
+                }).then(function(response){
+                    var newData = [];
+
+                    try {
+                        newData = JSON.parse(response);
+                        if (o.autocompleteUrlKey) {
+                            newData = newData[o.autocompleteUrlKey];
+                        }
+                    } catch (e) {
+                        newData = response.split("\n");
+                    }
+
+                    that.autocomplete = that.autocomplete.concat(newData);
+                });
             }
 
             if (o.label) {
@@ -19186,34 +21236,7 @@ $.noConflict = function() {
 
             element.on(Metro.events.input, function(){
                 var val = this.value.toLowerCase();
-                var items;
-
-                if (autocompleteList.length === 0) {
-                    return;
-                }
-
-                autocompleteList.html("");
-
-                items = that.autocomplete.filter(function(item){
-                    return item.toLowerCase().indexOf(val) > -1;
-                });
-
-                autocompleteList.css({
-                    display: items.length > 0 ? "block" : "none"
-                });
-
-                $.each(items, function(i, v){
-                    var index = v.toLowerCase().indexOf(val);
-                    var item = $("<div>").addClass("item").attr("data-autocomplete-value", v);
-                    var html;
-
-                    if (index === 0) {
-                        html = "<strong>"+v.substr(0, val.length)+"</strong>"+v.substr(val.length);
-                    } else {
-                        html = v.substr(0, index) + "<strong>"+v.substr(index, val.length)+"</strong>"+v.substr(index + val.length);
-                    }
-                    item.html(html).appendTo(autocompleteList);
-                })
+                that._drawAutocompleteList(val);
             });
 
             container.on(Metro.events.click, ".autocomplete-list .item", function(){
@@ -19226,6 +21249,45 @@ $.noConflict = function() {
                 that._fireEvent("autocomplete-select", {
                     value: val
                 });
+            });
+        },
+
+        _drawAutocompleteList: function(val){
+            var that = this, element = this.element;
+            var container = element.closest(".input");
+            var autocompleteList = container.find(".autocomplete-list");
+            var items;
+
+            if (autocompleteList.length === 0) {
+                return;
+            }
+
+            autocompleteList.html("");
+
+            items = this.autocomplete.filter(function(item){
+                return item.toLowerCase().indexOf(val) > -1;
+            });
+
+            autocompleteList.css({
+                display: items.length > 0 ? "block" : "none"
+            });
+
+            $.each(items, function(){
+                var v = this;
+                var index = v.toLowerCase().indexOf(val), content;
+                var item = $("<div>").addClass("item").attr("data-autocomplete-value", v);
+
+                if (index === 0) {
+                    content = "<strong>"+v.substr(0, val.length)+"</strong>"+v.substr(val.length);
+                } else {
+                    content = v.substr(0, index) + "<strong>"+v.substr(index, val.length)+"</strong>"+v.substr(index + val.length);
+                }
+
+                item.html(content).appendTo(autocompleteList);
+
+                that._fireEvent("draw-autocomplete-item", {
+                    item: item
+                })
             });
         },
 
@@ -19330,12 +21392,16 @@ $.noConflict = function() {
 
 (function(Metro, $) {
     'use strict';
-    var Utils = Metro.utils;
+    //var Utils = Metro.utils;
     var KeypadDefaultConfig = {
         keypadDeferred: 0,
         label: "",
         keySize: 48,
         keys: "1, 2, 3, 4, 5, 6, 7, 8, 9, 0",
+        exceptKeys: "",
+        keySeparator: "",
+        trimSeparator: false,
+        keyDelimiter: ",",
         copyInlineStyles: false,
         target: null,
         keyLength: 0,
@@ -19380,7 +21446,8 @@ $.noConflict = function() {
                 positions: ["top-left", "top", "top-right", "right", "bottom-right", "bottom", "bottom-left", "left"],
                 keypad: null,
                 keys: [],
-                keys_to_work: []
+                keys_to_work: [],
+                exceptKeys: []
             });
 
             return this;
@@ -19389,8 +21456,9 @@ $.noConflict = function() {
         _create: function(){
             var element = this.element, o = this.options;
 
-            this.keys = o.keys.toArray(",");
+            this.keys = o.keys.toArray(o.keyDelimiter);
             this.keys_to_work = this.keys;
+            this.exceptKeys = o.exceptKeys.toArray(o.keyDelimiter);
 
             this._createKeypad();
             if (o.shuffle === true) {
@@ -19535,14 +21603,17 @@ $.noConflict = function() {
 
             keys.on(Metro.events.click, ".key", function(e){
                 var key = $(this);
+                var keyValue = key.data("key");
+                var crop;
 
                 if (key.data('key') !== '&larr;' && key.data('key') !== '&times;') {
 
-                    if (o.keyLength > 0 && (String(that.value).length === o.keyLength)) {
+                    if (o.keyLength > 0 && (""+that.value).length === o.keyLength) {
                         return false;
                     }
 
-                    that.value = that.value + "" + key.data('key');
+                    if (that.exceptKeys.indexOf(keyValue) === -1)
+                        that.value = that.value + (that.value !== "" ? o.keySeparator : "") + keyValue;
 
                     if (o.shuffle === true) {
                         that.shuffle();
@@ -19562,13 +21633,11 @@ $.noConflict = function() {
                 } else {
                     if (key.data('key') === '&times;') {
                         that.value = "";
-
                         that._fireEvent("clear");
-
                     }
                     if (key.data('key') === '&larr;') {
-                        that.value = (that.value.substring(0, that.value.length - 1));
-
+                        crop = o.keySeparator && that.value[that.value.length - 1] !== o.keySeparator ? 2 : 1;
+                        that.value = (that.value.substring(0, that.value.length - crop));
                         that._fireEvent("backspace", {
                             val: that.value
                         });
@@ -19583,8 +21652,11 @@ $.noConflict = function() {
                     }
                 }
 
-                element.trigger('change');
-                Utils.exec(o.onChange, [that.value], element[0]);
+                that._fireEvent('change', {
+                    val: that.val
+                })
+                // element.trigger('change');
+                // Utils.exec(o.onChange, [that.value], element[0]);
 
                 e.preventDefault();
                 e.stopPropagation();
@@ -19643,13 +21715,21 @@ $.noConflict = function() {
         },
 
         val: function(v){
+            var element = this.element, o = this.options;
 
             if (typeof v === "undefined") {
-                return this.value;
+                return o.trimSeparator ? this.value.replace(new RegExp(o.keySeparator, "g")) : this.value;
             }
 
-            this.value = v;
-            this.element[0].tagName === "INPUT" ? this.element.val(v) : this.element.text(v);
+            this.value = ""+v;
+
+            if (element[0].tagName === "INPUT") {
+                element.val(v);
+                // set cursor to end position
+            } else {
+                element.text(v)
+            }
+
             return this;
         },
 
@@ -21244,6 +23324,247 @@ $.noConflict = function() {
         }
     });
 }(Metro, m4q));
+
+(function(Metro, $) {
+    'use strict';
+
+    var MarqueeDefaultConfig = {
+        items: null,
+        backgroundColor: "#fff",
+        color: "#000",
+        borderSize: 0,
+        borderColor: "transparent",
+        loop: true,
+        height: "auto",
+        width: "auto",
+        duration: 10000,
+        direction: "left",
+        ease: "linear",
+        mode: "default", // default || accent
+        accentPause: 2000,
+        firstPause: 1000,
+        stopOnHover: false,
+
+        clsMarquee: "",
+        clsMarqueeItem: "",
+
+        onMarqueeItem: Metro.noop,
+        onMarqueeItemComplete: Metro.noop,
+        onMarqueeComplete: Metro.noop,
+        onMarqueeCreate: Metro.noop
+    };
+
+    Metro.marqueeSetup = function (options) {
+        MarqueeDefaultConfig = $.extend({}, MarqueeDefaultConfig, options);
+    };
+
+    if (typeof window["metroMarqueeSetup"] !== undefined) {
+        Metro.marqueeSetup(window["metroMarqueeSetup"]);
+    }
+
+    Metro.Component('marquee', {
+        init: function( options, elem ) {
+            this._super(elem, options, MarqueeDefaultConfig, {
+                // define instance vars here
+                items: [],
+                running: false,
+                current: -1
+            });
+            return this;
+        },
+
+        _create: function(){
+            this._createStructure();
+            this._createEvents();
+
+            this._fireEvent('marquee-create');
+        },
+
+        _createStructure: function(){
+            var element = this.element, o = this.options;
+            var dir = o.direction.toLowerCase(), items, Utils = Metro.utils;
+            var h;
+
+            element.addClass("marquee").addClass(o.clsMarquee);
+
+            element.css({
+                height: o.height,
+                width: o.width,
+                backgroundColor: Metro.colors.isColor(o.backgroundColor) ? o.backgroundColor : MarqueeDefaultConfig.backgroundColor,
+                color: Metro.colors.isColor(o.color) ? o.color : MarqueeDefaultConfig.color,
+                borderStyle: "solid",
+                borderWidth: o.borderSize,
+                borderColor: Metro.colors.isColor(o.borderColor) ? o.borderColor : MarqueeDefaultConfig.borderColor
+            });
+
+            if (o.items) {
+                items = Utils.isObject(o.items);
+                if (items !== false) {
+                    $.each(items, function(){
+                        var el = $(this);
+
+                        if (el.length)
+                            el.appendTo(element);
+                        else
+                            element.append( $("<div>").html(this) );
+                    })
+                }
+            }
+
+            this.items = element.children("*").addClass("marquee__item").addClass(o.clsMarqueeItem).items();
+
+            if (dir === "left" || dir === "right") {
+                $(this.items).addClass("moveLeftRight");
+            } else {
+                $(this.items).addClass("moveUpDown");
+            }
+
+            if (o.height === "auto") {
+                h = 0;
+                $(this.items).each(function(){
+                    if ( +$(this).outerHeight(true) > h) {
+                        h = +$(this).outerHeight(true);
+                    }
+                });
+                element.height(h);
+            }
+
+            if (this.items.length) {
+                this.current = 0;
+            }
+
+            if (this.items.length) this.start();
+        },
+
+        _createEvents: function(){
+            var that = this, element = this.element, o = this.options;
+
+            element.on(Metro.events.enter, function(){
+                if (o.stopOnHover)
+                    $.pauseAll(that.items);
+            })
+
+            element.on(Metro.events.leave, function(){
+                if (o.stopOnHover)
+                    $.resumeAll(that.items);
+            })
+        },
+
+        start: function(){
+            var element = this.element, o = this.options;
+            var chain = [], dir = o.direction.toLowerCase(), mode = o.mode.toLowerCase();
+            var magic = 20;
+            var ease = o.ease.toArray(",");
+            var dur = +o.duration;
+
+            if (mode === "default") {
+                $.each(this.items, function (i) {
+                    var el = $(this);
+                    var draw;
+
+                    if (el.attr("data-direction")) {
+                        dir = el.attr("data-direction").toLowerCase();
+                    }
+
+                    if (el.attr("data-duration")) {
+                        dur = +el.attr("data-duration");
+                    }
+
+                    if (["left", "right"].indexOf(dir) > -1) {
+                        draw = {
+                            left: dir === "left" ? [element.width(), -$(this).width() - magic] : [-$(this).width() - magic, element.width()]
+                        }
+                    } else {
+                        draw = {
+                            top: dir === "up" ? [element.height(), -$(this).height() - magic] : [-$(this).height() - magic, element.height()]
+                        }
+                    }
+
+                    chain.push({
+                        el: this,
+                        draw: draw,
+                        dur: dur,
+                        ease: "linear",
+                        defer: i === 0 ? +o.firstPause : 0
+                    });
+                });
+            } else {
+                $.each(this.items, function(i){
+                    var el = $(this);
+                    var half, draw1, draw2;
+                    dur = o.duration / 2;
+
+                    if (el.attr("data-direction")) {
+                        dir = el.attr("data-direction").toLowerCase();
+                    }
+
+                    if (el.attr("data-duration")) {
+                        dur = +el.attr("data-duration") / 2;
+                    }
+
+                    if (el.attr("data-ease")) {
+                        ease = el.attr("data-ease").toArray(",");
+                    }
+
+                    if (["left", "right"].indexOf(dir) > -1) {
+                        half = element.width() / 2 - $(this).width() / 2;
+                        draw1 = {
+                            left: dir === "left" ? [element.width(), half] : [-$(this).width() - magic, half]
+                        }
+                        draw2 = {
+                            left: dir === "left" ? [half, -$(this).width() - magic] : [half, element.width() + magic]
+                        }
+                    } else {
+                        half = element.height() / 2 - $(this).height() / 2;
+                        draw1 = {
+                            top: dir === "up" ? [element.height(), half] : [-$(this).height() - magic, half]
+                        }
+                        draw2 = {
+                            top: dir === "up" ? [half, -$(this).height() - magic] : [half, element.height() + magic]
+                        }
+                    }
+
+                    chain.push({
+                        el: this,
+                        draw: draw1,
+                        dur: dur,
+                        ease: ease[0] || "linear",
+                        defer: i === 0 ? +o.firstPause : 0
+                    });
+                    chain.push({
+                        el: this,
+                        draw: draw2,
+                        dur: dur,
+                        ease: ease[1] ? ease[1] : ease[0] ? ease[0] : "linear",
+                        defer: +o.accentPause
+                    });
+                });
+            }
+
+            this.running = true;
+
+            $.chain(chain, {
+                loop: o.loop,
+                onChainItem: Metro.utils.isFunc(o.onMarqueeItem),
+                onChainItemComplete: Metro.utils.isFunc(o.onMarqueeItemComplete),
+                onChainComplete: Metro.utils.isFunc(o.onMarqueeComplete)
+            });
+        },
+
+        stop: function(){
+            this.running = false;
+            $.stopAll(this.items);
+        },
+
+        changeAttribute: function(){
+        },
+
+        destroy: function(){
+            this.element.remove();
+        }
+    });
+}(Metro, m4q));
+
 
 (function(Metro, $) {
     'use strict';
@@ -24087,6 +26408,7 @@ $.noConflict = function() {
         clsSelectedItem: "",
         clsSelectedItemRemover: "",
         clsLabel: "",
+        clsGroupName: "",
 
         onChange: Metro.noop,
         onUp: Metro.noop,
@@ -24155,9 +26477,15 @@ $.noConflict = function() {
             var l, a;
             var element = this.element, o = this.options;
             var html = Utils.isValue(option.attr('data-template')) ? option.attr('data-template').replace("$1", item.text):item.text;
+            var displayValue = option.attr("data-display");
 
             l = $("<li>").addClass(o.clsOption).data("option", item).attr("data-text", item.text).attr('data-value', item.value ? item.value : "");
             a = $("<a>").html(html);
+
+            if (displayValue) {
+                l.attr("data-display", displayValue);
+                html = displayValue;
+            }
 
             l.addClass(item.className);
 
@@ -24170,7 +26498,7 @@ $.noConflict = function() {
             if (option.is(":selected")) {
 
                 if (o.showGroupName && group) {
-                    html += "&nbsp;<span class='selected-item__group-name'>" + group + "</span>";
+                    html += "&nbsp;<span class='selected-item__group-name "+o.clsGroupName+"'>" + group + "</span>";
                 }
 
                 if (multiple) {
@@ -24411,15 +26739,16 @@ $.noConflict = function() {
                     return ;
                 }
                 var leaf = $(this);
+                var displayValue = leaf.attr("data-display");
                 var val = leaf.data('value');
                 var group = leaf.data('group');
-                var html = leaf.children('a').html();
+                var html = displayValue ? displayValue : leaf.children('a').html();
                 var selected;
                 var option = leaf.data("option");
                 var options = element.find("option");
 
                 if (o.showGroupName && group) {
-                    html += "&nbsp;<span class='selected-item__group-name'>" + group + "</span>";
+                    html += "&nbsp;<span class='selected-item__group-name "+o.clsGroupName+"'>" + group + "</span>";
                 }
 
                 if (element[0].multiple) {
@@ -25156,6 +27485,7 @@ $.noConflict = function() {
                 }
 
                 $(document).on(Metro.events.moveAll, function(e){
+                    if (e.cancelable) e.preventDefault();
                     that._move(e);
 
                     that._fireEvent("move", {
@@ -25906,12 +28236,13 @@ $.noConflict = function() {
             var that = this, element = this.element, o = this.options;
             var spinner = element.closest(".spinner");
             var spinner_buttons = spinner.find(".spinner-button");
+            var value;
 
             var spinnerButtonClick = function(plus, threshold){
-                var curr = element.val();
-
-                var val = Number(element.val());
-                var step = Number(o.step);
+                var events = [plus ? "plus-click" : "minus-click", plus ? "arrow-up" : "arrow-down", "button-click", "arrow-click"];
+                var curr = +element.val();
+                var val = +element.val();
+                var step = +o.step;
 
                 if (plus) {
                     val += step;
@@ -25921,26 +28252,7 @@ $.noConflict = function() {
 
                 that._setValue(val.toFixed(o.fixed), true);
 
-                that._fireEvent(plus ? "plus-click" : "minus-click", {
-                    curr: curr,
-                    val: val,
-                    elementVal: element.val()
-                });
-
-                that._fireEvent(plus ? "arrow-up" : "arrow-down", {
-                    curr: curr,
-                    val: val,
-                    elementVal: element.val()
-                });
-
-                that._fireEvent("button-click", {
-                    curr: curr,
-                    val: val,
-                    elementVal: element.val(),
-                    button: plus ? "plus" : "minus"
-                });
-
-                that._fireEvent("arrow-click", {
+                that._fireEvents(events, {
                     curr: curr,
                     val: val,
                     elementVal: element.val(),
@@ -25957,25 +28269,51 @@ $.noConflict = function() {
             spinner.on(Metro.events.click, function(e){
                 $(".focused").removeClass("focused");
                 spinner.addClass("focused");
+
                 e.preventDefault();
                 e.stopPropagation();
             });
 
-            spinner_buttons.on(Metro.events.start, function(e){
+            spinner_buttons.on(Metro.events.startAll, function(e){
                 var plus = $(this).closest(".spinner-button").hasClass("spinner-button-plus");
-                e.preventDefault();
+
+                if (that.repeat_timer) return ;
+
                 that.repeat_timer = true;
                 spinnerButtonClick(plus, o.repeatThreshold);
+
+                e.preventDefault();
             });
 
-            spinner_buttons.on(Metro.events.stop, function(){
+            spinner_buttons.on(Metro.events.stopAll, function(){
                 that.repeat_timer = false;
             });
 
             element.on(Metro.events.keydown, function(e){
                 if (e.keyCode === Metro.keyCode.UP_ARROW || e.keyCode === Metro.keyCode.DOWN_ARROW) {
+
+                    if (that.repeat_timer) return ;
+
                     that.repeat_timer = true;
                     spinnerButtonClick(e.keyCode === Metro.keyCode.UP_ARROW, o.repeatThreshold);
+
+                } else {
+                    var key = e.key;
+                    if (key === "Backspace" || key === "Delete" || key === "ArrowLeft" || key === "ArrowRight" ) {
+                        //
+                    } else
+                    if (isNaN(key) || parseInt(key) < 0 && parseInt(key) > 9) {
+                        e.preventDefault();
+                    }
+
+                    value = parseInt(this.value);
+                }
+            });
+
+            element.on(Metro.events.keyup, function(){
+                var val = parseInt(this.value);
+                if ((o.minValue && val < o.minValue) || (o.maxValue && val > o.maxValue)) {
+                    this.value = value;
                 }
             });
 
@@ -27499,8 +29837,9 @@ $.noConflict = function() {
 
     var Utils = Metro.utils;
     var TableDefaultConfig = {
+        showInspectorButton: false,
+        inspectorButtonIcon: "<span class='default-icon-equalizer'>",
         tableDeferred: 0,
-        emptyTableTitle: "Nothing to show",
         templateBeginToken: "<%",
         templateEndToken: "%>",
         paginationDistance: 5,
@@ -27550,16 +29889,17 @@ $.noConflict = function() {
         decimalSeparator: ".",
         thousandSeparator: ",",
 
-        tableRowsCountTitle: "Show entries:",
-        tableSearchTitle: "Search:",
-        tableInfoTitle: "Showing $1 to $2 of $3 entries",
-        paginationPrevTitle: "Prev",
-        paginationNextTitle: "Next",
-        allRecordsTitle: "All",
-        inspectorTitle: "Inspector",
-        tableSkipTitle: "Go to page",
+        tableRowsCountTitle: null,
+        tableSearchTitle: null,
+        tableInfoTitle: null,
+        paginationPrevTitle: null,
+        paginationNextTitle: null,
+        allRecordsTitle: null,
+        inspectorTitle: null,
+        tableSkipTitle: null,
+        emptyTableTitle: null,
 
-        activityType: "cycle",
+        activityType: "atom",
         activityStyle: "color",
         activityTimeout: 100,
 
@@ -27569,7 +29909,7 @@ $.noConflict = function() {
         paginationWrapper: null,
         skipWrapper: null,
 
-        cellWrapper: false,
+        cellWrapper: true,
 
         clsComponent: "",
         clsTableContainer: "",
@@ -27980,7 +30320,7 @@ $.noConflict = function() {
             inspector = $("<div data-role='draggable' data-drag-element='.table-inspector-header' data-drag-area='body'>").addClass("table-inspector");
             inspector.attr("for", this.element.attr("id"));
 
-            $("<div class='table-inspector-header'>"+o.inspectorTitle+"</div>").appendTo(inspector);
+            $("<div class='table-inspector-header'>"+(o.inspectorTitle || this.locale.table["inspector"])+"</div>").appendTo(inspector);
 
             table_wrap = $("<div>").addClass("table-wrap").appendTo(inspector);
 
@@ -28040,7 +30380,7 @@ $.noConflict = function() {
                     type: "data",
                     title: item.html(),
                     name: Utils.isValue(item.data("name")) ? item.data("name") : item.text().replace(" ", "_"),
-                    sortable: item.hasClass("sortable-column") || (Utils.isValue(item.data('sortable')) && JSON.parse(item.data('sortable') === true)),
+                    sortable: item.hasClass("sortable-column") || (Utils.isValue(item.data('sortable')) && JSON.parse(item.data('sortable')) === true),
                     sortDir: dir,
                     format: Utils.isValue(item.data("format")) ? item.data("format") : "string",
                     formatMask: Utils.isValue(item.data("format-mask")) ? item.data("format-mask") : null,
@@ -28132,13 +30472,16 @@ $.noConflict = function() {
 
         _createTableHeader: function(){
             var element = this.element, o = this.options;
-            var head = $("<thead>").html('');
+            var head = element.find("thead");
             var tr, th, tds = [], j, cells;
             var view = o.staticView ? this._createView() : this.view;
 
-            element.find("thead").remove();
+            if (head.length === 0) {
+                head = $("<thead>");
+                element.prepend(head);
+            }
 
-            head.addClass(o.clsHead);
+            head.clear().addClass(o.clsHead);
 
             if (this.heads.length === 0) {
                 return head;
@@ -28204,28 +30547,38 @@ $.noConflict = function() {
             for (j = 0; j < cells.length; j++){
                 tds[j].appendTo(tr);
             }
-
-            element.prepend(head);
         },
 
         _createTableBody: function(){
             var body, head, element = this.element;
 
             head  = element.find("thead");
-            element.find("tbody").remove();
-            body = $("<tbody>").addClass(this.options.clsBody);
-            body.insertAfter(head);
+            body  = element.find("tbody");
+
+            if (body.length === 0) {
+                body = $("<tbody>").addClass(this.options.clsBody);
+                if (head.length !== 0) {
+                    body.insertAfter(head);
+                } else {
+                    element.append(body);
+                }
+            }
+
+            body.clear();
         },
 
         _createTableFooter: function(){
             var element = this.element, o = this.options;
-            var foot = $("<tfoot>").addClass(o.clsFooter);
+            var foot = element.find("tfoot");
             var tr, th;
 
-            element.find("tfoot").remove();
+            if (foot.length === 0) {
+                foot = $("<tfoot>").appendTo(element);
+            }
+
+            foot.clear().addClass(o.clsFooter);
 
             if (this.foots.length === 0) {
-                element.append(foot);
                 return;
             }
 
@@ -28252,8 +30605,6 @@ $.noConflict = function() {
 
                 th.appendTo(tr);
             });
-
-            element.append(foot);
         },
 
         _createTopBlock: function (){
@@ -28266,7 +30617,7 @@ $.noConflict = function() {
 
             search_input = $("<input>").attr("type", "text").appendTo(search_block);
             Metro.makePlugin(search_input, "input", {
-                prepend: o.tableSearchTitle
+                prepend: o.tableSearchTitle || that.locale.table["search"]
             });
 
             if (o.showSearch !== true) {
@@ -28279,14 +30630,14 @@ $.noConflict = function() {
             rows_select = $("<select>").appendTo(rows_block);
             $.each(o.rowsSteps.toArray(), function () {
                 var val = parseInt(this);
-                var option = $("<option>").attr("value", val).text(val === -1 ? o.allRecordsTitle : val).appendTo(rows_select);
+                var option = $("<option>").attr("value", val).text(val === -1 ? (o.allRecordsTitle || that.locale.table["all"]) : val).appendTo(rows_select);
                 if (val === parseInt(o.rows)) {
                     option.attr("selected", "selected");
                 }
             });
             Metro.makePlugin(rows_select, "select",{
                 filter: false,
-                prepend: o.tableRowsCountTitle,
+                prepend: o.tableRowsCountTitle || that.locale.table["rowsCount"],
                 onChange: function (val) {
                     val = parseInt(val);
                     if (val === parseInt(o.rows)) {
@@ -28301,6 +30652,10 @@ $.noConflict = function() {
                     });
                 }
             });
+
+            if (o.showInspectorButton) {
+                $("<button>").addClass("button inspector-button").attr("type", "button").html(o.inspectorButtonIcon).insertAfter(rows_block);
+            }
 
             if (o.showRowsSteps !== true) {
                 rows_block.hide();
@@ -28330,7 +30685,7 @@ $.noConflict = function() {
             skip.addClass(o.clsTableSkip);
 
             $("<input type='text'>").addClass("input table-skip-input").addClass(o.clsTableSkipInput).appendTo(skip);
-            $("<button>").addClass("button table-skip-button").addClass(o.clsTableSkipButton).html(o.tableSkipTitle).appendTo(skip);
+            $("<button>").addClass("button table-skip-button").addClass(o.clsTableSkipButton).html(o.tableSkipTitle || this.locale.table["skip"]).appendTo(skip);
 
             if (o.showSkip !== true) {
                 skip.hide();
@@ -28354,7 +30709,7 @@ $.noConflict = function() {
             if (w_paging.length > 0) {this.wrapperPagination = w_paging;}
             if (w_skip.length > 0) {this.wrapperSkip = w_skip;}
 
-            element.html("").addClass(o.clsTable);
+            element.addClass(o.clsTable);
 
             this._createTableHeader();
             this._createTableBody();
@@ -28409,6 +30764,11 @@ $.noConflict = function() {
             var skip_input = o.skipWrapper ? $(o.skipWrapper).find('.table-skip-input') : component.find(".table-skip-input");
             var customSearch;
             var id = element.attr("id");
+            var inspectorButton = component.find(".inspector-button");
+
+            inspectorButton.on(Metro.events.click, function(){
+                that.toggleInspector();
+            });
 
             skip_button.on(Metro.events.click, function(){
                 var skipTo = parseInt(skip_input.val().trim());
@@ -28795,7 +31155,7 @@ $.noConflict = function() {
                 start = stop = length = 0;
             }
 
-            text = o.tableInfoTitle;
+            text = o.tableInfoTitle || this.locale.table["info"];
             text = text.replace("$1", start);
             text = text.replace("$2", stop);
             text = text.replace("$3", length);
@@ -28812,8 +31172,8 @@ $.noConflict = function() {
                 current: this.currentPage,
                 target: Utils.isValue(this.wrapperPagination) ? this.wrapperPagination : component.find(".table-pagination"),
                 claPagination: o.clsPagination,
-                prevTitle: o.paginationPrevTitle,
-                nextTitle: o.paginationNextTitle,
+                prevTitle: o.paginationPrevTitle || this.locale.table["prev"],
+                nextTitle: o.paginationNextTitle || this.locale.table["next"],
                 distance: o.paginationShortMode === true ? o.paginationDistance : 0
             });
         },
@@ -29028,7 +31388,7 @@ $.noConflict = function() {
                     j++;
                 }
                 tr = $("<tr>").addClass(o.clsBodyRow).appendTo(body);
-                td = $("<td>").attr("colspan", j).addClass("text-center").html($("<span>").addClass(o.clsEmptyTableTitle).html(o.emptyTableTitle));
+                td = $("<td>").attr("colspan", j).addClass("text-center").html($("<span>").addClass(o.clsEmptyTableTitle).html(o.emptyTableTitle || that.locale.table["empty"]));
                 td.appendTo(tr);
             }
 
@@ -30193,6 +32553,14 @@ $.noConflict = function() {
 
     var Utils = Metro.utils;
     var TagInputDefaultConfig = {
+        autocomplete: null,
+        autocompleteUnique: true,
+        autocompleteUrl: null,
+        autocompleteUrlMethod: "GET",
+        autocompleteUrlKey: null,
+        autocompleteDivider: ",",
+        autocompleteListHeight: 200,
+
         label: "",
         size: "normal",
         taginputDeferred: 0,
@@ -30236,7 +32604,8 @@ $.noConflict = function() {
         init: function( options, elem ) {
             this._super(elem, options, TagInputDefaultConfig, {
                 values: [],
-                triggers: []
+                triggers: [],
+                autocomplete: []
             });
 
             return this;
@@ -30309,12 +32678,50 @@ $.noConflict = function() {
             if (o.static === true || element.attr("readonly") !== undefined) {
                 container.addClass("static-mode");
             }
+
+            if (!Utils.isNull(o.autocomplete) || !Utils.isNull(o.autocompleteUrl)) {
+                $("<div>").addClass("autocomplete-list").css({
+                    maxHeight: o.autocompleteListHeight,
+                    display: "none"
+                }).appendTo(container);
+            }
+
+            if (Utils.isValue(o.autocomplete)) {
+                var autocomplete_obj = Utils.isObject(o.autocomplete);
+
+                if (autocomplete_obj !== false) {
+                    this.autocomplete = autocomplete_obj;
+                } else {
+                    this.autocomplete = o.autocomplete.toArray(o.autocompleteDivider);
+                }
+            }
+
+            if (Utils.isValue(o.autocompleteUrl)) {
+                $.ajax({
+                    url: o.autocompleteUrl,
+                    method: o.autocompleteUrlMethod
+                }).then(function(response){
+                    var newData = [];
+
+                    try {
+                        newData = JSON.parse(response);
+                        if (o.autocompleteUrlKey) {
+                            newData = newData[o.autocompleteUrlKey];
+                        }
+                    } catch (e) {
+                        newData = response.split("\n");
+                    }
+
+                    that.autocomplete = that.autocomplete.concat(newData);
+                });
+            }
         },
 
         _createEvents: function(){
             var that = this, element = this.element, o = this.options;
             var container = element.closest(".tag-input");
             var input = container.find(".input-wrapper");
+            var autocompleteList = container.find(".autocomplete-list");
 
             input.on(Metro.events.focus, function(){
                 container.addClass("focused");
@@ -30383,6 +32790,71 @@ $.noConflict = function() {
                 that._fireEvent("clear", {
                     val: val
                 });
+            });
+
+            input.on(Metro.events.input, function(){
+                var val = this.value.toLowerCase();
+                that._drawAutocompleteList(val);
+            });
+
+            container.on(Metro.events.click, ".autocomplete-list .item", function(){
+                var val = $(this).attr("data-autocomplete-value");
+
+                input.val("");
+                that._addTag(val);
+                input.attr("size", 1);
+
+                autocompleteList.css({
+                    display: "none"
+                });
+                that._fireEvent("autocomplete-select", {
+                    value: val
+                });
+            });
+        },
+
+        _drawAutocompleteList: function(val){
+            var that = this, element = this.element, o = this.options;
+            var container = element.closest(".tag-input");
+            var input = container.find(".input-wrapper");
+            var autocompleteList = container.find(".autocomplete-list");
+            var items;
+
+            if (autocompleteList.length === 0) {
+                return;
+            }
+
+            autocompleteList.html("");
+
+            items = this.autocomplete.filter(function(item){
+                return item.toLowerCase().indexOf(val) > -1;
+            });
+
+            autocompleteList.css({
+                display: items.length > 0 ? "block" : "none",
+                left: input.position().left
+            });
+
+            $.each(items, function(){
+                if (o.autocompleteUnique && that.values.indexOf(this) !== -1) {
+                    return ;
+                }
+
+                var v = this;
+                var index = v.toLowerCase().indexOf(val), content;
+                var item = $("<div>").addClass("item").attr("data-autocomplete-value", v);
+
+                if (index === 0) {
+                    content = "<strong>"+v.substr(0, val.length)+"</strong>"+v.substr(val.length);
+                } else {
+                    content = v.substr(0, index) + "<strong>"+v.substr(index, val.length)+"</strong>"+v.substr(index + val.length);
+                }
+
+                item.html(content).appendTo(autocompleteList);
+
+                that._fireEvent("draw-autocomplete-item", {
+                    item: item
+                })
             });
         },
 
@@ -30587,6 +33059,15 @@ $.noConflict = function() {
             }
         },
 
+        setAutocompleteList: function(l){
+            var autocomplete_list = Utils.isObject(l);
+            if (autocomplete_list !== false) {
+                this.autocomplete = autocomplete_list;
+            } else if (typeof l === "string") {
+                this.autocomplete = l.toArray(this.options.autocompleteDivider);
+            }
+        },
+
         changeAttribute: function(attributeName){
             var that = this, element = this.element, o = this.options;
 
@@ -30620,6 +33101,11 @@ $.noConflict = function() {
             return element;
         }
     });
+
+    $(document).on(Metro.events.click, function(){
+        $('.tag-input .autocomplete-list').hide();
+    });
+
 }(Metro, m4q));
 
 (function(Metro, $) {
@@ -31277,7 +33763,8 @@ $.noConflict = function() {
                     hours: null,
                     minutes: null,
                     seconds: null
-                }
+                },
+                id: Utils.elementId("time-picker")
             });
 
             return this;
@@ -31350,9 +33837,7 @@ $.noConflict = function() {
             var picker, hours, minutes, seconds, i;
             var timeWrapper, selectWrapper, selectBlock, actionBlock;
 
-            var id = Utils.elementId("time-picker");
-
-            picker = $("<div>").attr("id", id).addClass("wheel-picker time-picker " + element[0].className).addClass(o.clsPicker);
+            picker = $("<div>").addClass("wheel-picker time-picker " + element[0].className).addClass(o.clsPicker);
 
             picker.insertBefore(element);
             element.attr("readonly", true).appendTo(picker);
@@ -31450,12 +33935,12 @@ $.noConflict = function() {
                     target.scrollTop -= o.scrollSpeed * (pageY  > Utils.pageXY(e).y ? -1 : 1);
 
                     pageY = Utils.pageXY(e).y;
-                }, {ns: picker.attr("id")});
+                }, {ns: that.id});
 
                 $(document).on(Metro.events.stop, function(){
-                    $(document).off(Metro.events.move, {ns: picker.attr("id")});
-                    $(document).off(Metro.events.stop, {ns: picker.attr("id")});
-                }, {ns: picker.attr("id")});
+                    $(document).off(Metro.events.move, {ns: that.id});
+                    $(document).off(Metro.events.stop, {ns: that.id});
+                }, {ns: that.id});
             });
 
             picker.on(Metro.events.click, function(e){
@@ -31491,31 +33976,44 @@ $.noConflict = function() {
                 var part = this, list = picker.find(".sel-"+part);
 
                 list.on("scroll", function(){
-                    if (that.isOpen) {
-                        if (that.listTimer[part]) {
-                            clearTimeout(that.listTimer[part]);
-                            that.listTimer[part] = null;
+                    if (!that.isOpen) {
+                        return ;
+                    }
+
+                    if (that.listTimer[part]) {
+                        clearTimeout(that.listTimer[part]);
+                        that.listTimer[part] = null;
+                    }
+
+                    if (!that.listTimer[part]) that.listTimer[part] = setTimeout(function () {
+
+                        var target, targetElement, scrollTop;
+
+                        that.listTimer[part] = null;
+
+                        target = Math.round((Math.ceil(list.scrollTop()) / 40));
+
+                        if (part === "hours" && o.hoursStep) {
+                            target *= parseInt(o.hoursStep);
+                        }
+                        if (part === "minutes" && o.minutesStep) {
+                            target *= parseInt(o.minutesStep);
+                        }
+                        if (part === "seconds" && o.secondsStep) {
+                            target *= parseInt(o.secondsStep);
                         }
 
-                        if (!that.listTimer[part]) that.listTimer[part] = setTimeout(function () {
+                        targetElement = list.find(".js-" + part + "-" + target);
+                        scrollTop = targetElement.position().top - (o.distance * 40);
 
-                            var target, targetElement, scrollTop;
+                        list.find(".active").removeClass("active");
 
-                            that.listTimer[part] = null;
+                        list[0].scrollTop = scrollTop;
+                        targetElement.addClass("active");
+                        Utils.exec(o.onScroll, [targetElement, list, picker], list[0]);
 
-                            target = Math.round((Math.ceil(list.scrollTop()) / 40));
+                    }, scrollLatency);
 
-                            targetElement = list.find(".js-" + part + "-" + target);
-                            scrollTop = targetElement.position().top - (o.distance * 40);
-
-                            list.find(".active").removeClass("active");
-
-                            list[0].scrollTop = scrollTop;
-                            targetElement.addClass("active");
-                            Utils.exec(o.onScroll, [targetElement, list, picker], list[0]);
-
-                        }, scrollLatency);
-                    }
                 })
             });
         },
@@ -33559,7 +36057,8 @@ $.noConflict = function() {
         },
         url: function(val){
             /* eslint-disable-next-line */
-            return /^(?:(?:https?|ftp):\/\/)(?:\S+(?::\S*)?@)?(?:(?!(?:10|127)(?:\.\d{1,3}){3})(?!(?:169\.254|192\.168)(?:\.\d{1,3}){2})(?!172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})(?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])(?:\.(?:1?\d{1,2}|2[0-4]\d|25[0-5])){2}(?:\.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4]))|(?:(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)(?:\.(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)*(?:\.(?:[a-z\u00a1-\uffff]{2,}))\.?)(?::\d{2,5})?(?:[/?#]\S*)?$/i.test(val);
+            var regexp    = /^(?:(?:(?:https?|ftp):)?\/\/)(?:\S+(?::\S*)?@)?(?:(?!(?:10|127)(?:\.\d{1,3}){3})(?!(?:169\.254|192\.168)(?:\.\d{1,3}){2})(?!172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})(?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])(?:\.(?:1?\d{1,2}|2[0-4]\d|25[0-5])){2}(?:\.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4]))|(?:(?:[a-z0-9\u00a1-\uffff][a-z0-9\u00a1-\uffff_-]{0,62})?[a-z0-9\u00a1-\uffff]\.)+(?:[a-z\u00a1-\uffff]{2,}\.?))(?::\d{2,5})?(?:[/?#]\S*)?$/i;
+            return regexp.test(val);
         },
         date: function(val, format, locale){
             if (Utils.isNull(format)) {
